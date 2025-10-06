@@ -1,0 +1,69 @@
+===============================================
+    DGB ASSISTENT - BRUGERINSTRUKTIONER
+===============================================
+
+📍 PLACERING PÅ M: DREV
+DGB Assistent er installeret på: M:\DGB-Assistent\DGB-Assistent.exe
+
+⚠️  VIGTIGT - LÆS DETTE!
+═══════════════════════════
+
+🚫 FLYT ALDRIG DGB-Assistent.exe fra M: drevet!
+   - Hvis du flytter filen, kan andre ikke længere bruge den
+   - Filen SKAL forblive på M:\DGB-Assistent\
+
+✅ SÅDAN OPRETTER DU EN GENVEJ:
+   1. Gå til M:\DGB-Assistent\
+   2. Højreklik på DGB-Assistent.exe
+   3. Vælg "Send til" → "Skrivebord (opret genvej)"
+   
+   ELLER
+   
+   1. Dobbeltklik på "opret-genvej.bat" i denne mappe
+   2. Følg instruktionerne på skærmen
+
+🎯 HVAD KAN DGB ASSISTENT?
+═════════════════════════
+
+📸 BILLEDBEHANDLING:
+   • Simpel Billedkomprimering (reducer filstørrelse til KB)
+   • Gruppe Billedbehandler (navngiv billeder a, b, c...)
+   • Individuel Billedbehandler (giv hvert billede eget navn)
+
+🗂️ MUSEUM ORGANISERING:
+   • Automatisk placering af billeder i korrekte museum mapper
+   • Kun store/ukomprimerede versioner flyttes til museum systemet
+   • Understøtter sagnummer format (f.eks. 1234x5678)
+
+🚀 SÅDAN BRUGER DU DET:
+═══════════════════════
+
+1. Dobbeltklik på DGB Assistent genvejen på dit skrivebord
+2. Vælg hvilket billedbehandlingsprogram du vil bruge
+3. Upload dine billeder
+4. Følg instruktionerne i programmet
+5. Brug "🗂️ Organiser til Museum" knappen for automatisk organisering
+
+💡 TIPS:
+═══════
+
+• Start altid med færre billeder første gang (5-10 stk)
+• Sørg for at dine filnavne indeholder sagnummer (f.eks. 1234x5678)
+• Brug "Validér Navne" funktionen før du starter behandling
+• Gem altid både små og store versioner - kun store går til museum
+
+🆘 HJÆLP OG SUPPORT:
+═══════════════════
+
+• Hvis DGB Assistent ikke starter: Kontakt IT support
+• Hvis M: drevet ikke virker: Kontakt IT support  
+• For spørgsmål om billedbehandling: Kontakt projekt ansvarlig
+• GitHub: https://github.com/diveden/dgb-assistent
+
+📞 SUPPORT KONTAKT:
+═══════════════════
+IT Helpdesk: [Indsæt kontaktinfo]
+Projekt ansvarlig: [Indsæt kontaktinfo]
+
+Sidst opdateret: Oktober 2025
+Version: 1.0.0
