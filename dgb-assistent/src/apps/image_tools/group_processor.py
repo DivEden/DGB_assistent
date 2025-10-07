@@ -5,6 +5,10 @@ Grupperer billeder og navngiver dem systematisk (a, b, c, osv.)
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+try:
+    from tkinter import simpledialog
+except ImportError:
+    import tkinter.simpledialog as simpledialog
 import os
 from pathlib import Path
 import io
@@ -119,12 +123,16 @@ class GroupImageProcessor:
         self.file_count_label = ttk.Label(file_frame, text="Ingen filer valgt")
         self.file_count_label.pack(side=tk.LEFT)
         
-        # Image preview and grouping
-        self.grouping_frame = ttk.LabelFrame(self.setup_tab, text="Gruppér Billeder", padding=15)
-        self.grouping_frame.pack(fill=tk.BOTH, expand=True)
+        # Main container for image area and groups
+        main_container = ttk.Frame(self.setup_tab)
+        main_container.pack(fill=tk.BOTH, expand=True)
         
-        # Canvas for image thumbnails and drag-drop
-        canvas_frame = ttk.Frame(self.grouping_frame)
+        # Left side: Image thumbnails
+        images_frame = ttk.LabelFrame(main_container, text="Valgte Billeder", padding=10)
+        images_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+        
+        # Canvas for image thumbnails with drag support
+        canvas_frame = ttk.Frame(images_frame)
         canvas_frame.pack(fill=tk.BOTH, expand=True)
         
         self.setup_canvas = tk.Canvas(canvas_frame, bg='white', height=300)
@@ -140,9 +148,17 @@ class GroupImageProcessor:
         canvas_frame.grid_rowconfigure(0, weight=1)
         canvas_frame.grid_columnconfigure(0, weight=1)
         
+        # Bind mousewheel for images canvas
+        self.setup_canvas.bind("<MouseWheel>", self.on_images_mousewheel)
+        
+        # Right side: Groups area
+        self.groups_container = ttk.LabelFrame(main_container, text="Grupper", padding=10)
+        self.groups_container.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False, padx=(10, 0))
+        self.groups_container.configure(width=300)
+        
         # Group management buttons
-        group_btn_frame = ttk.Frame(self.grouping_frame)
-        group_btn_frame.pack(fill=tk.X, pady=(10, 0))
+        group_btn_frame = ttk.Frame(self.groups_container)
+        group_btn_frame.pack(fill=tk.X, pady=(0, 10))
         
         add_group_btn = tk.Button(group_btn_frame,
                                  text="➕ Ny Gruppe",
@@ -165,6 +181,29 @@ class GroupImageProcessor:
                                     cursor='hand2',
                                     command=self.clear_groups)
         clear_groups_btn.pack(side=tk.LEFT)
+        
+        # Scrollable groups display
+        groups_canvas_frame = ttk.Frame(self.groups_container)
+        groups_canvas_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.groups_canvas = tk.Canvas(groups_canvas_frame, bg='white', width=280)
+        groups_v_scrollbar = ttk.Scrollbar(groups_canvas_frame, orient="vertical", command=self.groups_canvas.yview)
+        
+        self.groups_scrollable_frame = tk.Frame(self.groups_canvas, bg='white')
+        
+        self.groups_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.groups_canvas.configure(scrollregion=self.groups_canvas.bbox("all"))
+        )
+        
+        self.groups_canvas.create_window((0, 0), window=self.groups_scrollable_frame, anchor="nw")
+        self.groups_canvas.configure(yscrollcommand=groups_v_scrollbar.set)
+        
+        self.groups_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        groups_v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Bind mousewheel for groups canvas  
+        self.groups_canvas.bind("<MouseWheel>", self.on_groups_mousewheel)
         
     def create_process_tab(self):
         """Create the processing tab"""
@@ -281,9 +320,17 @@ class GroupImageProcessor:
             ('Alle filer', '*.*')
         ]
         
+        # Bring window to front before showing dialog
+        if self.window:
+            self.window.lift()
+            self.window.attributes('-topmost', True)
+            self.window.update()
+            self.window.attributes('-topmost', False)
+        
         files = filedialog.askopenfilenames(
             title="Vælg billeder til gruppering",
-            filetypes=file_types
+            filetypes=file_types,
+            parent=self.window
         )
         
         if files:
@@ -292,21 +339,37 @@ class GroupImageProcessor:
             self.file_count_label.config(text=f"{count} filer valgt")
             self.load_image_thumbnails()
             
+            # Reset groups when new files are selected
+            self.image_groups.clear()
+            self.update_groups_display()
+            
             # Warn if too many files
             if count > 50:
                 messagebox.showwarning("For mange filer", 
-                                     f"Du har valgt {count} filer. For bedste ydeevne anbefales maks 50 filer ad gangen.")
+                                     f"Du har valgt {count} filer. For bedste ydeevne anbefales maks 50 filer ad gangen.",
+                                     parent=self.window)
+    
+    def on_images_mousewheel(self, event):
+        """Handle mouse wheel scrolling for images canvas"""
+        self.setup_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+    
+    def on_groups_mousewheel(self, event):
+        """Handle mouse wheel scrolling for groups canvas"""
+        self.groups_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
     
     def load_image_thumbnails(self):
         """Load thumbnails for selected images"""
         # Clear canvas
         self.setup_canvas.delete("all")
         
+        # Clear previous image references
+        self.setup_canvas.image_refs = []
+        self.image_widgets = {}  # Track image widgets for selection
+        
         # Create thumbnails in a grid
-        x, y = 10, 10
         col_width = 120
         row_height = 150
-        cols_per_row = 6
+        cols_per_row = 4  # Reduced for better layout
         
         for i, file_path in enumerate(self.selected_files):
             try:
@@ -321,19 +384,32 @@ class GroupImageProcessor:
                 x_pos = col * col_width + 10
                 y_pos = row * row_height + 10
                 
+                # Create image frame
+                image_frame = self.setup_canvas.create_rectangle(x_pos, y_pos, x_pos + col_width - 10, y_pos + row_height - 10, 
+                                                               outline='#e0e0e0', fill='white', width=1)
+                
                 # Create image on canvas
                 image_id = self.setup_canvas.create_image(x_pos + 50, y_pos + 50, image=photo)
                 text_id = self.setup_canvas.create_text(x_pos + 50, y_pos + 120, 
-                                                       text=f"{i}: {os.path.basename(file_path)[:15]}...",
-                                                       width=100, font=('Segoe UI', 8))
+                                                       text=f"{i+1}: {os.path.basename(file_path)[:12]}...",
+                                                       width=100, font=('Segoe UI', 8),
+                                                       fill='#333')
                 
-                # Keep reference to prevent garbage collection
-                self.setup_canvas.image_refs = getattr(self.setup_canvas, 'image_refs', [])
+                # Keep references
                 self.setup_canvas.image_refs.append(photo)
+                self.image_widgets[i] = {
+                    'frame': image_frame,
+                    'image': image_id, 
+                    'text': text_id,
+                    'selected': False,
+                    'x': x_pos,
+                    'y': y_pos
+                }
                 
-                # Bind click events for grouping
-                self.setup_canvas.tag_bind(image_id, "<Button-1>", 
-                                          lambda e, idx=i: self.on_image_click(idx))
+                # Bind click events for selection
+                for item_id in [image_frame, image_id, text_id]:
+                    self.setup_canvas.tag_bind(item_id, "<Button-1>", 
+                                              lambda e, idx=i: self.toggle_image_selection(idx))
                 
             except Exception as e:
                 print(f"Fejl ved indlæsning af thumbnail for {file_path}: {e}")
@@ -341,36 +417,204 @@ class GroupImageProcessor:
         # Update scroll region
         self.setup_canvas.configure(scrollregion=self.setup_canvas.bbox("all"))
     
-    def on_image_click(self, image_index: int):
-        """Handle image click for grouping"""
-        # Simple implementation - for now just show which image was clicked
-        filename = os.path.basename(self.selected_files[image_index])
-        messagebox.showinfo("Billede valgt", f"Du klikkede på billede #{image_index}: {filename}")
+    def toggle_image_selection(self, image_index: int):
+        """Toggle image selection for grouping"""
+        if image_index not in self.image_widgets:
+            return
+            
+        widget_info = self.image_widgets[image_index]
+        is_selected = widget_info['selected']
+        
+        # Toggle selection state
+        widget_info['selected'] = not is_selected
+        
+        # Update visual appearance
+        if widget_info['selected']:
+            # Selected: blue border
+            self.setup_canvas.itemconfig(widget_info['frame'], outline='#3b82f6', width=3)
+            self.setup_canvas.itemconfig(widget_info['text'], fill='#3b82f6')
+        else:
+            # Unselected: gray border  
+            self.setup_canvas.itemconfig(widget_info['frame'], outline='#e0e0e0', width=1)
+            self.setup_canvas.itemconfig(widget_info['text'], fill='#333')
     
     def add_new_group(self):
         """Add a new group"""
-        group_name = tk.simpledialog.askstring("Ny Gruppe", "Indtast gruppenavn:")
-        if group_name:
-            new_group = {
-                'name': group_name.strip(),
-                'images': []
-            }
-            self.image_groups.append(new_group)
-            self.update_groups_display()
-            self.check_ready_for_processing()
+        try:
+            group_name = simpledialog.askstring("Ny Gruppe", "Indtast gruppenavn:", parent=self.window)
+            if group_name and group_name.strip():
+                new_group = {
+                    'name': group_name.strip(),
+                    'images': []
+                }
+                self.image_groups.append(new_group)
+                self.update_groups_display()
+                self.check_ready_for_processing()
+        except Exception as e:
+            messagebox.showerror("Fejl", f"Kunne ikke oprette gruppe: {str(e)}", parent=self.window)
     
     def clear_groups(self):
         """Clear all groups"""
-        if messagebox.askyesno("Bekræft", "Er du sikker på at du vil rydde alle grupper?"):
+        if messagebox.askyesno("Bekræft", "Er du sikker på at du vil rydde alle grupper?", parent=self.window):
             self.image_groups.clear()
             self.update_groups_display()
             self.check_ready_for_processing()
     
     def update_groups_display(self):
         """Update the display of groups"""
-        # This would update a groups display area
-        # For now, just update the processing button state
+        # Clear existing group displays
+        for widget in self.groups_scrollable_frame.winfo_children():
+            widget.destroy()
+        
+        if not self.image_groups:
+            # Show instructions when no groups
+            instructions = tk.Label(self.groups_scrollable_frame,
+                                   text="Opret grupper og træk billeder hertil\n\n"
+                                        "1. Klik 'Ny Gruppe'\n"
+                                        "2. Vælg billeder (klik for at markere)\n"
+                                        "3. Klik 'Tilføj til Gruppe'",
+                                   font=('Segoe UI', 9),
+                                   fg='#666',
+                                   bg='white',
+                                   justify=tk.CENTER)
+            instructions.pack(pady=20)
+            return
+        
+        # Display each group
+        for group_idx, group in enumerate(self.image_groups):
+            self.create_group_widget(group_idx, group)
+        
+        # Update scroll region
+        self.groups_scrollable_frame.update_idletasks()
+        self.groups_canvas.configure(scrollregion=self.groups_canvas.bbox("all"))
+        
+        # Update processing readiness
         self.check_ready_for_processing()
+    
+    def create_group_widget(self, group_idx: int, group: dict):
+        """Create a widget for displaying and managing a group"""
+        group_frame = tk.Frame(self.groups_scrollable_frame, bg='white', relief=tk.SOLID, bd=1)
+        group_frame.pack(fill=tk.X, pady=5, padx=5)
+        
+        # Group header
+        header_frame = tk.Frame(group_frame, bg='#f0f9ff')
+        header_frame.pack(fill=tk.X, padx=2, pady=2)
+        
+        # Group name
+        name_label = tk.Label(header_frame,
+                             text=f"📁 {group['name']}",
+                             font=('Segoe UI', 10, 'bold'),
+                             bg='#f0f9ff',
+                             fg='#1e40af')
+        name_label.pack(side=tk.LEFT, padx=8, pady=5)
+        
+        # Group controls
+        controls_frame = tk.Frame(header_frame, bg='#f0f9ff')
+        controls_frame.pack(side=tk.RIGHT, padx=5)
+        
+        # Add selected images button
+        add_btn = tk.Button(controls_frame,
+                           text="+ Tilføj Valgte",
+                           font=('Segoe UI', 8),
+                           bg='#10b981',
+                           fg='white',
+                           relief=tk.FLAT,
+                           padx=8, pady=3,
+                           cursor='hand2',
+                           command=lambda idx=group_idx: self.add_selected_to_group(idx))
+        add_btn.pack(side=tk.LEFT, padx=2)
+        
+        # Remove group button
+        remove_btn = tk.Button(controls_frame,
+                              text="🗑️",
+                              font=('Segoe UI', 8),
+                              bg='#ef4444',
+                              fg='white',
+                              relief=tk.FLAT,
+                              padx=6, pady=3,
+                              cursor='hand2',
+                              command=lambda idx=group_idx: self.remove_group(idx))
+        remove_btn.pack(side=tk.LEFT, padx=2)
+        
+        # Group content
+        content_frame = tk.Frame(group_frame, bg='white')
+        content_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        if group['images']:
+            # Show images in group
+            for i, img_idx in enumerate(group['images']):
+                if img_idx < len(self.selected_files):
+                    filename = os.path.basename(self.selected_files[img_idx])
+                    img_label = tk.Label(content_frame,
+                                        text=f"  • {filename[:20]}..." if len(filename) > 20 else f"  • {filename}",
+                                        font=('Segoe UI', 8),
+                                        bg='white',
+                                        fg='#333',
+                                        anchor=tk.W)
+                    img_label.pack(fill=tk.X)
+            
+            # Show count
+            count_label = tk.Label(content_frame,
+                                  text=f"Antal billeder: {len(group['images'])}",
+                                  font=('Segoe UI', 8, 'italic'),
+                                  bg='white',
+                                  fg='#666')
+            count_label.pack(pady=(5, 0))
+        else:
+            # Empty group message
+            empty_label = tk.Label(content_frame,
+                                  text="Ingen billeder i denne gruppe",
+                                  font=('Segoe UI', 8, 'italic'),
+                                  bg='white',
+                                  fg='#999')
+            empty_label.pack(pady=10)
+    
+    def add_selected_to_group(self, group_idx: int):
+        """Add selected images to specified group"""
+        if group_idx >= len(self.image_groups):
+            return
+            
+        # Get selected image indices
+        selected_indices = [idx for idx, widget in self.image_widgets.items() 
+                           if widget['selected']]
+        
+        if not selected_indices:
+            messagebox.showwarning("Ingen valgt", "Vælg først nogle billeder ved at klikke på dem.", 
+                                 parent=self.window)
+            return
+        
+        # Add to group (avoid duplicates)
+        group = self.image_groups[group_idx]
+        for idx in selected_indices:
+            if idx not in group['images']:
+                group['images'].append(idx)
+        
+        # Clear selections
+        for idx in selected_indices:
+            if idx in self.image_widgets:
+                self.image_widgets[idx]['selected'] = False
+                widget_info = self.image_widgets[idx]
+                self.setup_canvas.itemconfig(widget_info['frame'], outline='#e0e0e0', width=1)
+                self.setup_canvas.itemconfig(widget_info['text'], fill='#333')
+        
+        # Update display
+        self.update_groups_display()
+        
+        # Show success message
+        count = len(selected_indices)
+        messagebox.showinfo("Tilføjet til Gruppe", 
+                           f"{count} billede{'r' if count > 1 else ''} tilføjet til '{group['name']}'",
+                           parent=self.window)
+    
+    def remove_group(self, group_idx: int):
+        """Remove a group"""
+        if group_idx < len(self.image_groups):
+            group_name = self.image_groups[group_idx]['name']
+            if messagebox.askyesno("Bekræft Sletning", 
+                                 f"Slet gruppe '{group_name}'?",
+                                 parent=self.window):
+                del self.image_groups[group_idx]
+                self.update_groups_display()
     
     def check_ready_for_processing(self):
         """Check if ready for processing and enable/disable start button"""
@@ -406,9 +650,16 @@ class GroupImageProcessor:
             total_images = sum(len(group['images']) for group in self.image_groups)
             processed_count = 0
             
+            if total_images == 0:
+                self.window.after(0, lambda: self.processing_error("Ingen billeder i grupperne"))
+                return
+            
             for group in self.image_groups:
                 group_name = group['name'].strip()
                 image_indices = group['images']
+                
+                if not image_indices:  # Skip empty groups
+                    continue
                 
                 # Generate letter suffixes (a, b, c, ...)
                 letters = [chr(97 + i) for i in range(len(image_indices))]
@@ -417,9 +668,10 @@ class GroupImageProcessor:
                     if image_index < len(self.selected_files):
                         file_path = self.selected_files[image_index]
                         
-                        # Update status
-                        self.window.after(0, lambda: self.status_label.config(
-                            text=f"Behandler: {group_name} {letter}"))
+                        # Update status (use proper lambda closure)
+                        def update_status(gname=group_name, ltr=letter):
+                            self.status_label.config(text=f"Behandler: {gname} {ltr}")
+                        self.window.after(0, update_status)
                         
                         try:
                             # Process image
@@ -432,7 +684,11 @@ class GroupImageProcessor:
                         
                         processed_count += 1
                         progress = (processed_count / total_images) * 100
-                        self.window.after(0, lambda p=progress: self.progress_var.set(p))
+                        
+                        # Update progress (use proper lambda closure)
+                        def update_progress(p=progress):
+                            self.progress_var.set(p)
+                        self.window.after(0, update_progress)
             
             # Processing complete
             self.window.after(0, lambda: self.processing_complete(len(self.processed_files), total_images))
@@ -605,11 +861,19 @@ class GroupImageProcessor:
         if not self.processed_files:
             return
         
+        # Bring window to front before showing dialog
+        if self.window:
+            self.window.lift()
+            self.window.attributes('-topmost', True)
+            self.window.update()
+            self.window.attributes('-topmost', False)
+        
         # Select save location
         zip_path = filedialog.asksaveasfilename(
             title="Gem ZIP fil",
             defaultextension=".zip",
-            filetypes=[("ZIP filer", "*.zip"), ("Alle filer", "*.*")]
+            filetypes=[("ZIP filer", "*.zip"), ("Alle filer", "*.*")],
+            parent=self.window
         )
         
         if not zip_path:
@@ -636,8 +900,15 @@ class GroupImageProcessor:
         if not self.processed_files:
             return
         
+        # Bring window to front before showing dialog
+        if self.window:
+            self.window.lift()
+            self.window.attributes('-topmost', True)
+            self.window.update()
+            self.window.attributes('-topmost', False)
+        
         # Select output directory
-        output_dir = filedialog.askdirectory(title="Vælg mappe til gemte billeder")
+        output_dir = filedialog.askdirectory(title="Vælg mappe til gemte billeder", parent=self.window)
         if not output_dir:
             return
         

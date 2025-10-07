@@ -81,23 +81,9 @@ class ModernAppHub:
                 "action": "individual_processor"
             },
             {
-                "name": "Rapport Generator", 
-                "description": "Generer og administrer rapporter",
-                "category": "Produktivitet",
-                "icon": "📊",
-                "color": "#002852"
-            },
-            {
-                "name": "Data Analyse", 
-                "description": "Analysér og visualiser data",
-                "category": "Analyse",
-                "icon": "📈",
-                "color": "#002852"
-            },
-            {
                 "name": "Indstillinger", 
                 "description": "Konfigurer applikationsindstillinger",
-                "category": "System",
+                "category": "Billeder",
                 "icon": "⚙️",
                 "color": "#002852"
             }
@@ -203,8 +189,7 @@ class ModernAppHub:
                                  bg=self.colors['bg_sidebar'])
         subtitle_label.pack(anchor=tk.W, pady=(5, 0))
         
-        # Categories in sidebar
-        self.create_category_nav(sidebar)
+        # Categories removed - only Billeder category now
         
         # Quick stats
         self.create_quick_stats(sidebar)
@@ -213,36 +198,8 @@ class ModernAppHub:
         self.create_sidebar_footer(sidebar)
         
     def create_category_nav(self, parent):
-        """Create category navigation"""
-        nav_frame = tk.Frame(parent, bg=self.colors['bg_sidebar'])
-        nav_frame.pack(fill=tk.X, padx=20, pady=20)
-        
-        nav_title = tk.Label(nav_frame, text="KATEGORIER", 
-                            font=self.fonts['caption'], 
-                            fg=self.colors['text_sidebar'], 
-                            bg=self.colors['bg_sidebar'])
-        nav_title.pack(anchor=tk.W, pady=(0, 15))
-        
-        categories = ["Alle", "Billeder", "Produktivitet", "Analyse", "System"]
-        
-        for category in categories:
-            cat_btn = tk.Button(nav_frame, text=category,
-                               font=self.fonts['body'],
-                               fg=self.colors['text_sidebar'],
-                               bg=self.colors['bg_sidebar'],
-                               activebackground=self.colors['sidebar_accent'],
-                               activeforeground=self.colors['text_white'],
-                               relief=tk.FLAT,
-                               anchor=tk.W,
-                               padx=16, pady=10,
-                               cursor='hand2',
-                               bd=0,
-                               command=lambda c=category: self.filter_by_category(c))
-            cat_btn.pack(fill=tk.X, pady=1)
-            
-            # Add dark theme hover effects
-            cat_btn.bind("<Enter>", lambda e, btn=cat_btn: self.on_sidebar_button_hover(btn, True))
-            cat_btn.bind("<Leave>", lambda e, btn=cat_btn: self.on_sidebar_button_hover(btn, False))
+        """Create category navigation - removed, only Billeder category now"""
+        pass
             
     def create_quick_stats(self, parent):
         """Create quick statistics display"""
@@ -263,13 +220,12 @@ class ModernAppHub:
                               bg=self.colors['bg_sidebar'])
         count_label.pack(anchor=tk.W)
         
-        # Categories count
-        categories_count = len(set(app['category'] for app in self.apps))
-        cat_label = tk.Label(stats_frame, text=f"{categories_count} Kategorier", 
+        # Version info
+        version_label = tk.Label(stats_frame, text="Version 1.1", 
                             font=self.fonts['body'], 
                             fg=self.colors['text_sidebar'], 
                             bg=self.colors['bg_sidebar'])
-        cat_label.pack(anchor=tk.W, pady=(6, 0))
+        version_label.pack(anchor=tk.W, pady=(6, 0))
         
     def create_sidebar_footer(self, parent):
         """Create sidebar footer with GitHub and settings"""
@@ -343,25 +299,11 @@ class ModernAppHub:
         header_frame.grid(row=0, column=0, sticky="ew", padx=30, pady=(30, 20))
         header_frame.columnconfigure(1, weight=1)
         
-        # Welcome text in Danish
-        welcome_frame = tk.Frame(header_frame, bg=self.colors['bg_primary'])
-        welcome_frame.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 20))
-        
-        welcome_label = tk.Label(welcome_frame, text="Godmorgen! 👋", 
-                                font=self.fonts['subheading'], 
-                                fg=self.colors['text_primary'], 
-                                bg=self.colors['bg_primary'])
-        welcome_label.pack(anchor=tk.W)
-        
-        subtitle_label = tk.Label(welcome_frame, text="Hvad vil du gerne arbejde med i dag?", 
-                                 font=self.fonts['body'], 
-                                 fg=self.colors['text_secondary'], 
-                                 bg=self.colors['bg_primary'])
-        subtitle_label.pack(anchor=tk.W, pady=(2, 0))
+        # Welcome text removed as requested
         
         # Search bar
         search_frame = tk.Frame(header_frame, bg=self.colors['bg_primary'])
-        search_frame.grid(row=1, column=0, sticky="ew", pady=10)
+        search_frame.grid(row=0, column=0, sticky="ew", pady=10)
         
         search_icon = tk.Label(search_frame, text="�", 
                               font=self.fonts['body'], 
@@ -385,25 +327,7 @@ class ModernAppHub:
         search_entry.bind('<FocusIn>', self.on_search_focus_in)
         search_entry.bind('<FocusOut>', self.on_search_focus_out)
         
-        # Quick actions
-        actions_frame = tk.Frame(header_frame, bg=self.colors['bg_primary'])
-        actions_frame.grid(row=1, column=1, sticky="e", pady=10, padx=(20, 0))
-        
-        add_btn = tk.Button(actions_frame, text="➕ Tilføj App",
-                           font=self.fonts['button'],
-                           fg=self.colors['text_white'],
-                           bg=self.colors['accent'],
-                           activebackground=self.colors['accent_hover'],
-                           relief=tk.FLAT,
-                           padx=24, pady=12,
-                           cursor='hand2',
-                           bd=0,
-                           command=self.add_new_app)
-        add_btn.pack(side=tk.RIGHT)
-        
-        # Add modern hover effect to add button
-        add_btn.bind("<Enter>", lambda e: add_btn.configure(bg=self.colors['accent_hover']))
-        add_btn.bind("<Leave>", lambda e: add_btn.configure(bg=self.colors['accent']))
+        # Quick actions removed - Tilføj App button removed as requested
         
     def create_app_grid(self, parent):
         """Create scrollable grid of app tiles"""
@@ -538,12 +462,8 @@ class ModernAppHub:
         button.bind("<Leave>", lambda e: button.configure(bg=self.colors['accent']))
             
     def filter_apps(self):
-        """Filter apps based on current category and search"""
+        """Filter apps based on search only (no categories anymore)"""
         apps = self.apps.copy()
-        
-        # Filter by category
-        if self.selected_category.get() != "Alle":
-            apps = [app for app in apps if app['category'] == self.selected_category.get()]
             
         # Filter by search
         search_term = self.search_var.get().lower()
@@ -610,9 +530,8 @@ class ModernAppHub:
         self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         
     def filter_by_category(self, category):
-        """Filter apps by category"""
-        self.selected_category.set(category)
-        self.update_app_display()
+        """Filter apps by category - removed"""
+        pass
         
     def launch_app(self, app):
         """Launch an application"""
@@ -622,22 +541,34 @@ class ModernAppHub:
             try:
                 resizer = SimpleImageResizer(self.master)
                 resizer.show()
+                # Ensure proper window focus
+                if hasattr(resizer, 'window') and resizer.window:
+                    resizer.window.lift()
+                    resizer.window.focus_force()
             except Exception as e:
-                messagebox.showerror("Fejl", f"Kunne ikke starte Simpel Billedkomprimering:\n{str(e)}")
+                messagebox.showerror("Fejl", f"Kunne ikke starte Simpel Billedkomprimering:\n{str(e)}", parent=self.master)
         
         elif action == 'group_processor':
             try:
                 processor = GroupImageProcessor(self.master)
                 processor.show()
+                # Ensure proper window focus
+                if hasattr(processor, 'window') and processor.window:
+                    processor.window.lift()
+                    processor.window.focus_force()
             except Exception as e:
-                messagebox.showerror("Fejl", f"Kunne ikke starte Gruppe Billedbehandler:\n{str(e)}")
+                messagebox.showerror("Fejl", f"Kunne ikke starte Gruppe Billedbehandler:\n{str(e)}", parent=self.master)
         
         elif action == 'individual_processor':
             try:
                 processor = IndividualImageProcessor(self.master)
                 processor.show()
+                # Ensure proper window focus
+                if hasattr(processor, 'window') and processor.window:
+                    processor.window.lift()
+                    processor.window.focus_force()
             except Exception as e:
-                messagebox.showerror("Fejl", f"Kunne ikke starte Individuel Billedbehandler:\n{str(e)}")
+                messagebox.showerror("Fejl", f"Kunne ikke starte Individuel Billedbehandler:\n{str(e)}", parent=self.master)
         
         elif app['name'] == 'Indstillinger':
             self.open_settings()
@@ -650,22 +581,19 @@ class ModernAppHub:
                                "Dette er en placeholder. Du kan integrere rigtig app-start her.")
         
     def add_new_app(self):
-        """Add a new app to the hub"""
-        messagebox.showinfo("Tilføj Ny App", 
-                           "Tilføj Ny App funktionalitet ville åbne her.\n\n"
-                           "Du kan oprette en dialog til at tilføje brugerdefinerede applikationer til din hub.")
+        """Add a new app to the hub - removed"""
+        pass
     
     def open_github(self):
         """Open GitHub repository"""
         import webbrowser
         try:
-            # Replace with your actual GitHub repository URL
-            github_url = "https://github.com/yourusername/dgb-assistent"
+            github_url = "https://github.com/DivEden/DGB_assistent"
             webbrowser.open(github_url)
         except Exception as e:
             messagebox.showinfo("GitHub", 
-                               "GitHub repository ville åbne her.\n\n"
-                               "Du kan konfigurere din GitHub repository URL i koden.")
+                               "Kunne ikke åbne GitHub repository.\n\n"
+                               "Du kan besøge https://github.com/DivEden/DGB_assistent manuelt.")
         
     def open_settings(self):
         """Open application settings"""

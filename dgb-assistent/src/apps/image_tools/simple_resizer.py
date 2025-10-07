@@ -176,9 +176,17 @@ class SimpleImageResizer:
             ('Alle filer', '*.*')
         ]
         
+        # Bring window to front before showing dialog
+        if self.window:
+            self.window.lift()
+            self.window.attributes('-topmost', True)
+            self.window.update()
+            self.window.attributes('-topmost', False)
+        
         files = filedialog.askopenfilenames(
             title="Vælg billeder til komprimering",
-            filetypes=file_types
+            filetypes=file_types,
+            parent=self.window
         )
         
         if files:
@@ -190,7 +198,8 @@ class SimpleImageResizer:
             # Warn if too many files
             if count > 20:
                 messagebox.showwarning("For mange filer", 
-                                     f"Du har valgt {count} filer. For bedste ydeevne anbefales maks 20 filer ad gangen.")
+                                     f"Du har valgt {count} filer. For bedste ydeevne anbefales maks 20 filer ad gangen.",
+                                     parent=self.window)
         
     def start_processing(self):
         """Start processing images in a separate thread"""
@@ -385,8 +394,15 @@ class SimpleImageResizer:
         if not self.processed_images:
             return
             
+        # Bring window to front before showing dialog
+        if self.window:
+            self.window.lift()
+            self.window.attributes('-topmost', True)
+            self.window.update()
+            self.window.attributes('-topmost', False)
+        
         # Select output directory
-        output_dir = filedialog.askdirectory(title="Vælg mappe til gemte billeder")
+        output_dir = filedialog.askdirectory(title="Vælg mappe til gemte billeder", parent=self.window)
         if not output_dir:
             return
         

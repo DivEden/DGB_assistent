@@ -154,8 +154,22 @@ class IndividualImageProcessor:
         canvas_frame.grid_rowconfigure(0, weight=1)
         canvas_frame.grid_columnconfigure(0, weight=1)
         
-        # Bind mousewheel
+        # Bind mousewheel to canvas and frame
         self.naming_canvas.bind("<MouseWheel>", self.on_mousewheel)
+        self.naming_scrollable_frame.bind("<MouseWheel>", self.on_mousewheel)
+        
+        # Also bind to the canvas frame to ensure scrolling works
+        canvas_frame.bind("<MouseWheel>", self.on_mousewheel)
+        
+        # Bind focus events to ensure mousewheel works when hovering
+        def bind_mousewheel_recursive(widget):
+            widget.bind("<Enter>", lambda e: widget.focus_set())
+            widget.bind("<MouseWheel>", self.on_mousewheel)
+            for child in widget.winfo_children():
+                bind_mousewheel_recursive(child)
+        
+        # Apply recursive binding
+        bind_mousewheel_recursive(canvas_frame)
         
     def create_process_tab(self):
         """Create the processing tab"""
@@ -290,9 +304,17 @@ class IndividualImageProcessor:
             ('Alle filer', '*.*')
         ]
         
+        # Bring window to front before showing dialog
+        if self.window:
+            self.window.lift()
+            self.window.attributes('-topmost', True)
+            self.window.update()
+            self.window.attributes('-topmost', False)
+        
         files = filedialog.askopenfilenames(
             title="Vælg billeder til individuel behandling",
-            filetypes=file_types
+            filetypes=file_types,
+            parent=self.window
         )
         
         if files:
@@ -304,7 +326,8 @@ class IndividualImageProcessor:
             # Warn if too many files
             if count > 30:
                 messagebox.showwarning("For mange filer", 
-                                     f"Du har valgt {count} filer. For bedste brugeroplevelse anbefales maks 30 filer ad gangen.")
+                                     f"Du har valgt {count} filer. For bedste brugeroplevelse anbefales maks 30 filer ad gangen.",
+                                     parent=self.window)
     
     def create_naming_interface(self):
         """Create the naming interface for each selected image"""
@@ -374,6 +397,10 @@ class IndividualImageProcessor:
         
         # Add validation on change
         name_var.trace_add('write', lambda *args, idx=index: self.on_name_change(idx))
+        
+        # Bind mousewheel to all new widgets in this row
+        for widget in [row_frame, img_label, info_frame, filename_label, name_frame, name_label, name_entry]:
+            widget.bind("<MouseWheel>", self.on_mousewheel)
     
     def on_name_change(self, index: int):
         """Called when a name entry changes"""
@@ -639,11 +666,19 @@ class IndividualImageProcessor:
         if not self.processed_files:
             return
         
+        # Bring window to front before showing dialog
+        if self.window:
+            self.window.lift()
+            self.window.attributes('-topmost', True)
+            self.window.update()
+            self.window.attributes('-topmost', False)
+        
         # Select save location
         zip_path = filedialog.asksaveasfilename(
             title="Gem ZIP fil",
             defaultextension=".zip",
-            filetypes=[("ZIP filer", "*.zip"), ("Alle filer", "*.*")]
+            filetypes=[("ZIP filer", "*.zip"), ("Alle filer", "*.*")],
+            parent=self.window
         )
         
         if not zip_path:
@@ -670,8 +705,15 @@ class IndividualImageProcessor:
         if not self.processed_files:
             return
         
+        # Bring window to front before showing dialog
+        if self.window:
+            self.window.lift()
+            self.window.attributes('-topmost', True)
+            self.window.update()
+            self.window.attributes('-topmost', False)
+        
         # Select output directory
-        output_dir = filedialog.askdirectory(title="Vælg mappe til gemte billeder")
+        output_dir = filedialog.askdirectory(title="Vælg mappe til gemte billeder", parent=self.window)
         if not output_dir:
             return
         
