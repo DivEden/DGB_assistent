@@ -985,13 +985,13 @@ class GroupImageProcessor:
                 f"Kun de store/ukomprimerete versioner organiseres.\n"
                 f"Filerne vil blive kopieret til:\n"
                 f"{self.museum_organizer.base_path}\n\n"
-                f"Mapper vil blive oprettet automatisk hvis de ikke findes."
+                f"Eksisterende mapper med beskrivelser vil blive fundet automatisk."
             )
             
             if not response:
                 return
             
-            # Organisér filerne
+            # Organisér filerne - nu med smart scanning
             results = self.museum_organizer.organize_files(large_files, ask_before_create=True)
             
             # Vis resultater

@@ -75,6 +75,43 @@ class MuseumOrganizer:
         
         return full_path
     
+    def find_existing_case_folder(self, case_number: str) -> Optional[str]:
+        """
+        Scan for eksisterende sag mapper med alternative navne
+        Returns: fuld sti til eksisterende mappe eller None
+        """
+        try:
+            # Få parent mappen (ten-range mappe)
+            standard_path = self.get_case_folder_path(case_number)
+            parent_path = os.path.dirname(standard_path)
+            
+            if not os.path.exists(parent_path):
+                return None
+            
+            # Scan for forskellige navngivningsformater
+            for item in os.listdir(parent_path):
+                item_path = os.path.join(parent_path, item)
+                if not os.path.isdir(item_path):
+                    continue
+                
+                # Format 1: "Sag 0030, beskrivelse..."
+                if item.startswith(f"Sag {case_number},"):
+                    return item_path
+                
+                # Format 2: "0030x" (bare nummeret med x)
+                if item == f"{case_number}x":
+                    return item_path
+                
+                # Format 3: Præcist match (sikkerhedscheck)
+                if item == f"Sag {case_number}":
+                    return item_path
+            
+            return None
+            
+        except Exception as e:
+            print(f"Fejl ved scanning efter sag {case_number}: {e}")
+            return None
+    
     def verify_and_create_path(self, case_number: str, ask_user: bool = True) -> Tuple[bool, str]:
         """
         Verificer om stien findes, og spørg brugeren om den skal oprettes hvis ikke
@@ -86,7 +123,12 @@ class MuseumOrganizer:
             if os.path.exists(target_path):
                 return True, f"Mappe findes: {target_path}"
             
-            # Mappe findes ikke
+            # Standard mappe findes ikke - scan for alternative navne
+            existing_path = self.find_existing_case_folder(case_number)
+            if existing_path:
+                return True, f"Fandt eksisterende mappe: {existing_path}"
+            
+            # Ingen variation fundet - spørg om oprettelse
             if ask_user:
                 response = messagebox.askyesno(
                     "Opret Mappe?",
@@ -145,8 +187,9 @@ class MuseumOrganizer:
                     results['errors'].append(message)
                     continue
                 
-                # Få target sti
-                target_folder = self.get_case_folder_path(case_number)
+                # Få target sti - brug eksisterende hvis fundet, ellers den beregnede
+                existing_folder = self.find_existing_case_folder(case_number)
+                target_folder = existing_folder if existing_folder else self.get_case_folder_path(case_number)
                 target_file_path = os.path.join(target_folder, filename)
                 
                 # Kopiér eller flyt filen

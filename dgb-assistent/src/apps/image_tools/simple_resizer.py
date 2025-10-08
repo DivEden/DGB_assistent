@@ -464,13 +464,13 @@ class SimpleImageResizer:
                 f"Organisér {len(valid_files)} gyldige billeder til museum mappestruktur?\n\n"
                 f"Filerne vil blive kopieret til:\n"
                 f"{self.museum_organizer.base_path}\n\n"
-                f"Mapper vil blive oprettet automatisk hvis de ikke findes."
+                f"Eksisterende mapper med beskrivelser vil blive fundet automatisk."
             )
             
             if not response:
                 return
             
-            # Organisér filerne
+            # Organisér filerne - nu med smart scanning
             results = self.museum_organizer.organize_files(valid_files, ask_before_create=True)
             
             # Vis resultater
