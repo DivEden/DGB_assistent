@@ -408,44 +408,6 @@ class IndividualImageProcessor:
         self.validation_label.config(text="", foreground='black')
         self.start_btn.config(state=tk.DISABLED)
     
-    def get_unique_zip_filename(self, filename: str, used_names: set) -> str:
-        """
-        Generer et unikt filnavn til ZIP-arkiv for duplikerede filer
-        Alle duplikerede filer får a, b, c suffikser - også det første
-        """
-        # Split filnavn og extension
-        name, ext = os.path.splitext(filename)
-        
-        # Tjek om der er duplikater med samme base-navn
-        base_matches = [used_name for used_name in used_names 
-                       if os.path.splitext(used_name)[0].split(' ')[0] == name]
-        
-        # Hvis der ikke er duplikater, returner originalt navn
-        if not base_matches and filename not in used_names:
-            return filename
-        
-        # Find næste tilgængelige bogstav
-        for i in range(26):  # a-z
-            suffix = chr(ord('a') + i)
-            new_filename = f"{name} {suffix}{ext}"
-            
-            if new_filename not in used_names:
-                return new_filename
-        
-        # Hvis alle bogstaver er brugt, brug numre
-        counter = 1
-        while True:
-            new_filename = f"{name} {counter}{ext}"
-            
-            if new_filename not in used_names:
-                return new_filename
-            
-            counter += 1
-            
-            # Sikkerhedscheck
-            if counter > 1000:
-                return f"{name} {counter}{ext}"  # Return anyway
-    
     def validate_names(self):
         """Validate all image names"""
         if not self.image_names:
@@ -727,20 +689,31 @@ class IndividualImageProcessor:
         
         try:
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                # Track filenames for each folder to handle duplicates
-                small_names_used = set()
-                large_names_used = set()
-                
+                # First pass: count duplicates for each filename
+                filename_counts = {}
                 for file_pair in self.processed_files:
                     base_filename = file_pair['small']['filename']
+                    filename_counts[base_filename] = filename_counts.get(base_filename, 0) + 1
+                
+                # Second pass: assign unique names with suffixes for duplicates
+                filename_counters = {}
+                for file_pair in self.processed_files:
+                    base_filename = file_pair['small']['filename']
+                    name, ext = os.path.splitext(base_filename)
                     
-                    # Get unique filenames for both versions
-                    small_filename = self.get_unique_zip_filename(base_filename, small_names_used)
-                    large_filename = self.get_unique_zip_filename(base_filename, large_names_used)
-                    
-                    # Add to used sets
-                    small_names_used.add(small_filename)
-                    large_names_used.add(large_filename)
+                    # If there are multiple files with this name, add suffix
+                    if filename_counts[base_filename] > 1:
+                        if base_filename not in filename_counters:
+                            filename_counters[base_filename] = 0
+                        
+                        suffix = chr(ord('a') + filename_counters[base_filename])
+                        small_filename = f"{name} {suffix}{ext}"
+                        large_filename = f"{name} {suffix}{ext}"
+                        filename_counters[base_filename] += 1
+                    else:
+                        # Single file, no suffix needed
+                        small_filename = base_filename
+                        large_filename = base_filename
                     
                     # Add small version
                     zip_file.writestr(f"small/{small_filename}", file_pair['small']['data'])
