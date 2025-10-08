@@ -267,9 +267,9 @@ class SimpleImageResizer:
             # Compress image
             compressed_data = self.create_thumbnail(image_data, target_size_kb)
             
-            # Generate output filename
+            # Generate output filename (keep original name, convert to jpg)
             input_path = Path(file_path)
-            output_filename = f"{input_path.stem}_compressed.jpg"
+            output_filename = f"{input_path.stem}.jpg"
             
             return {
                 'original_path': file_path,
