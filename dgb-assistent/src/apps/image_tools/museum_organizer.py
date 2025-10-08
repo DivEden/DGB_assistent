@@ -405,18 +405,29 @@ class MuseumOrganizer:
     
     def get_unique_filename(self, file_path: str) -> str:
         """
-        Generer et unikt filnavn hvis der allerede eksisterer en fil med samme navn
-        Tilføjer bogstaver: fil.jpg -> fil a.jpg -> fil b.jpg osv.
+        Generer et unikt filnavn for duplikerede filer
+        Alle duplikerede filer får a, b, c suffikser - også det første
         """
-        if not os.path.exists(file_path):
-            return file_path
-        
         # Split filnavn og extension
         directory = os.path.dirname(file_path)
         filename = os.path.basename(file_path)
         name, ext = os.path.splitext(filename)
         
-        # Prøv bogstaver a, b, c, osv.
+        # Tjek om der allerede findes filer med dette navn (med eller uden suffikser)
+        existing_files = []
+        if os.path.exists(directory):
+            for existing_file in os.listdir(directory):
+                existing_name, existing_ext = os.path.splitext(existing_file)
+                # Tjek for exact match eller files med suffikser
+                if (existing_name == name or 
+                    existing_name.startswith(name + " ")) and existing_ext == ext:
+                    existing_files.append(existing_file)
+        
+        # Hvis der ikke er duplikater, returner originalt navn
+        if not existing_files and not os.path.exists(file_path):
+            return file_path
+        
+        # Find næste tilgængelige bogstav
         for i in range(26):  # a-z
             suffix = chr(ord('a') + i)
             new_name = f"{name} {suffix}{ext}"

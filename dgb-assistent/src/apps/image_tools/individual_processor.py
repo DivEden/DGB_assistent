@@ -410,16 +410,21 @@ class IndividualImageProcessor:
     
     def get_unique_zip_filename(self, filename: str, used_names: set) -> str:
         """
-        Generer et unikt filnavn til ZIP-arkiv hvis navnet allerede er brugt
-        Tilføjer bogstaver: fil.jpg -> fil a.jpg -> fil b.jpg osv.
+        Generer et unikt filnavn til ZIP-arkiv for duplikerede filer
+        Alle duplikerede filer får a, b, c suffikser - også det første
         """
-        if filename not in used_names:
-            return filename
-        
         # Split filnavn og extension
         name, ext = os.path.splitext(filename)
         
-        # Prøv bogstaver a, b, c, osv.
+        # Tjek om der er duplikater med samme base-navn
+        base_matches = [used_name for used_name in used_names 
+                       if os.path.splitext(used_name)[0].split(' ')[0] == name]
+        
+        # Hvis der ikke er duplikater, returner originalt navn
+        if not base_matches and filename not in used_names:
+            return filename
+        
+        # Find næste tilgængelige bogstav
         for i in range(26):  # a-z
             suffix = chr(ord('a') + i)
             new_filename = f"{name} {suffix}{ext}"
