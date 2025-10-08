@@ -408,6 +408,39 @@ class IndividualImageProcessor:
         self.validation_label.config(text="", foreground='black')
         self.start_btn.config(state=tk.DISABLED)
     
+    def get_unique_zip_filename(self, filename: str, used_names: set) -> str:
+        """
+        Generer et unikt filnavn til ZIP-arkiv hvis navnet allerede er brugt
+        Tilføjer bogstaver: fil.jpg -> fil a.jpg -> fil b.jpg osv.
+        """
+        if filename not in used_names:
+            return filename
+        
+        # Split filnavn og extension
+        name, ext = os.path.splitext(filename)
+        
+        # Prøv bogstaver a, b, c, osv.
+        for i in range(26):  # a-z
+            suffix = chr(ord('a') + i)
+            new_filename = f"{name} {suffix}{ext}"
+            
+            if new_filename not in used_names:
+                return new_filename
+        
+        # Hvis alle bogstaver er brugt, brug numre
+        counter = 1
+        while True:
+            new_filename = f"{name} {counter}{ext}"
+            
+            if new_filename not in used_names:
+                return new_filename
+            
+            counter += 1
+            
+            # Sikkerhedscheck
+            if counter > 1000:
+                return f"{name} {counter}{ext}"  # Return anyway
+    
     def validate_names(self):
         """Validate all image names"""
         if not self.image_names:
@@ -689,14 +722,26 @@ class IndividualImageProcessor:
         
         try:
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                # Track filenames for each folder to handle duplicates
+                small_names_used = set()
+                large_names_used = set()
+                
                 for file_pair in self.processed_files:
-                    filename = file_pair['small']['filename']
+                    base_filename = file_pair['small']['filename']
+                    
+                    # Get unique filenames for both versions
+                    small_filename = self.get_unique_zip_filename(base_filename, small_names_used)
+                    large_filename = self.get_unique_zip_filename(base_filename, large_names_used)
+                    
+                    # Add to used sets
+                    small_names_used.add(small_filename)
+                    large_names_used.add(large_filename)
                     
                     # Add small version
-                    zip_file.writestr(f"small/{filename}", file_pair['small']['data'])
+                    zip_file.writestr(f"small/{small_filename}", file_pair['small']['data'])
                     
                     # Add large version
-                    zip_file.writestr(f"large/{filename}", file_pair['large']['data'])
+                    zip_file.writestr(f"large/{large_filename}", file_pair['large']['data'])
             
             messagebox.showinfo("ZIP Oprettet", f"ZIP fil gemt som:\n{zip_path}")
             
