@@ -191,7 +191,7 @@ class IndividualImageProcessor:
         size_spinbox.pack(side=tk.RIGHT)
         
         # AAB prefix option
-        self.use_aab_var = tk.BooleanVar(value=True)
+        self.use_aab_var = tk.BooleanVar(value=False)
         aab_check = ttk.Checkbutton(settings_frame,
                                    text="Brug 'AAB' præfiks i filnavne",
                                    variable=self.use_aab_var)

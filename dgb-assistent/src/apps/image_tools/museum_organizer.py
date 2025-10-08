@@ -342,18 +342,22 @@ class MuseumOrganizer:
                     results['errors'].append(f"Fejl ved organisering af sag {filename}: {str(e)}")
                     continue
             
+            # Håndter duplikerede filnavne
+            final_file_path = self.get_unique_filename(target_file_path)
+            final_filename = os.path.basename(final_file_path)
+            
             # Kopiér eller flyt filen (fælles for begge typer)
             try:
                 if 'data' in file_info:
                     # Skriv data direkte til fil
-                    with open(target_file_path, 'wb') as f:
+                    with open(final_file_path, 'wb') as f:
                         f.write(file_info['data'])
-                    results['success'].append(f"Gemt {filename} til {target_file_path}")
+                    results['success'].append(f"Gemt {final_filename} til {final_file_path}")
                     
                 elif 'source_path' in file_info:
                     # Kopiér fra kilde fil
-                    shutil.copy2(file_info['source_path'], target_file_path)
-                    results['success'].append(f"Kopieret {filename} til {target_file_path}")
+                    shutil.copy2(file_info['source_path'], final_file_path)
+                    results['success'].append(f"Kopieret {final_filename} til {final_file_path}")
                     
                 else:
                     results['errors'].append(f"Ingen data eller kilde sti for {filename}")
@@ -398,6 +402,43 @@ class MuseumOrganizer:
             print(f"Fejl ved scanning af eksisterende sager: {e}")
         
         return sorted(existing_cases)
+    
+    def get_unique_filename(self, file_path: str) -> str:
+        """
+        Generer et unikt filnavn hvis der allerede eksisterer en fil med samme navn
+        Tilføjer bogstaver: fil.jpg -> fil a.jpg -> fil b.jpg osv.
+        """
+        if not os.path.exists(file_path):
+            return file_path
+        
+        # Split filnavn og extension
+        directory = os.path.dirname(file_path)
+        filename = os.path.basename(file_path)
+        name, ext = os.path.splitext(filename)
+        
+        # Prøv bogstaver a, b, c, osv.
+        for i in range(26):  # a-z
+            suffix = chr(ord('a') + i)
+            new_name = f"{name} {suffix}{ext}"
+            new_path = os.path.join(directory, new_name)
+            
+            if not os.path.exists(new_path):
+                return new_path
+        
+        # Hvis alle bogstaver er brugt, brug numre
+        counter = 1
+        while True:
+            new_name = f"{name} {counter}{ext}"
+            new_path = os.path.join(directory, new_name)
+            
+            if not os.path.exists(new_path):
+                return new_path
+            
+            counter += 1
+            
+            # Sikkerhedscheck - undgå uendelig løkke
+            if counter > 1000:
+                raise Exception(f"For mange duplikerede filer for {filename}")
     
     def validate_filename(self, filename: str) -> Tuple[bool, str]:
         """Validér om et filnavn kan organiseres"""
@@ -445,6 +486,41 @@ def test_organizer():
         "12345;85.jpg",      # Genstand fra 1985
         "AAB 00073;15.jpg"   # AAB præfiks med genstands-nummer
     ]
+    
+    # Test duplikat håndtering
+    print("Testing duplikat håndtering:")
+    test_path = "/test/path/1234x5678.jpg"
+    
+    # Simuler eksisterende filer
+    import tempfile
+    import os
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Opret test filer
+        base_file = os.path.join(temp_dir, "1234x5678.jpg")
+        with open(base_file, 'w') as f:
+            f.write("test")
+        
+        # Test unique filename generation
+        unique1 = organizer.get_unique_filename(base_file)
+        print(f"  Original: 1234x5678.jpg")
+        print(f"  Første duplikat: {os.path.basename(unique1)}")
+        
+        # Opret den første duplikat
+        with open(unique1, 'w') as f:
+            f.write("test")
+        
+        unique2 = organizer.get_unique_filename(base_file)
+        print(f"  Anden duplikat: {os.path.basename(unique2)}")
+        
+        # Opret den anden duplikat
+        with open(unique2, 'w') as f:
+            f.write("test")
+        
+        unique3 = organizer.get_unique_filename(base_file)
+        print(f"  Tredje duplikat: {os.path.basename(unique3)}")
+    
+    print("\nTesting validering og sti-generering:")
     
     print("Testing Museum Organizer:")
     print("-" * 40)
