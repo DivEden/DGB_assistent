@@ -425,7 +425,7 @@ class IndividualImageProcessor:
             )
             return False
         
-        # Check for duplicate names
+        # Check for duplicate names (men tillad dem nu - systemet håndterer automatisk)
         duplicates = []
         seen_names = {}
         for i, name in enumerate(names):
@@ -435,14 +435,17 @@ class IndividualImageProcessor:
                 seen_names[name.lower()] = i
         
         if duplicates:
+            # Info besked i stedet for fejl - systemet håndterer automatisk
+            duplicate_count = len(duplicates)
             self.validation_label.config(
-                text=f"Duplikerede navne: {', '.join(duplicates)}",
-                foreground='red'
+                text=f"ℹ️ {duplicate_count} duplikerede navne vil få automatisk suffiks (a, b, c)",
+                foreground='orange'
             )
-            return False
+        else:
+            # Ingen duplikater fundet
+            self.validation_label.config(text="✅ Alle navne er unikke!", foreground='green')
         
-        # All validation passed
-        self.validation_label.config(text="✅ Alle navne er gyldige!", foreground='green')
+        # All validation passed - duplikater er nu tilladt
         self.start_btn.config(state=tk.NORMAL)
         return True
     
