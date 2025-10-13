@@ -24,18 +24,16 @@ import math
 
 # Handle imports for both development and packaged versions
 try:
-    from utils.updater import AutoUpdater, UpdateDialog
     from utils.settings import SettingsManager, SettingsDialog
-    from config import APP_VERSION, GITHUB_REPO_OWNER, GITHUB_REPO_NAME
+    from config import APP_VERSION
     # Import image processing tools
     from apps.image_tools.simple_resizer import SimpleImageResizer
     from apps.image_tools.group_processor import GroupImageProcessor
     from apps.image_tools.individual_processor import IndividualImageProcessor
 except ImportError:
     # Fallback for development with relative imports
-    from ..utils.updater import AutoUpdater, UpdateDialog
     from ..utils.settings import SettingsManager, SettingsDialog
-    from ..config import APP_VERSION, GITHUB_REPO_OWNER, GITHUB_REPO_NAME
+    from ..config import APP_VERSION
     # Import image processing tools
     from ..apps.image_tools.simple_resizer import SimpleImageResizer
     from ..apps.image_tools.group_processor import GroupImageProcessor
@@ -50,9 +48,8 @@ class ModernAppHub:
         self.search_var = tk.StringVar()
         self.selected_category = tk.StringVar(value="Alle")
         
-        # Initialize auto-updater and settings
+        # Initialize settings
         self.settings_manager = SettingsManager()
-        self.updater = AutoUpdater(APP_VERSION, GITHUB_REPO_OWNER, GITHUB_REPO_NAME)
         
         # DGB Assistent apps (customizable)
         self.apps = [
@@ -91,9 +88,6 @@ class ModernAppHub:
         
         self.setup_window()
         self.create_modern_interface()
-        
-        # Check for updates after UI is ready
-        self.check_for_updates()
         
     def setup_window(self):
         """Configure the main window with modern styling"""
@@ -648,32 +642,7 @@ class ModernAppHub:
         
         messagebox.showinfo("Om DGB Assistent", about_text)
     
-    def check_for_updates(self):
-        """Check for application updates in background"""
-        # Only check if auto-updates are enabled
-        if not self.settings_manager.get('auto_update_enabled', True):
-            return
-            
-        def on_update_available(release_info):
-            """Called when an update is available"""
-            # Only show notification if enabled
-            if self.settings_manager.get('show_update_notifications', True):
-                # Schedule the dialog to show on the main thread
-                self.master.after(0, lambda: self.show_update_dialog(release_info))
-        
-        # Update the check frequency
-        self.updater.check_interval_days = self.settings_manager.get('check_frequency_days', 1)
-        
-        # Start background check
-        self.updater.check_for_updates_async(on_update_available)
-    
-    def show_update_dialog(self, release_info):
-        """Show the update notification dialog"""
-        try:
-            dialog = UpdateDialog(self.master, release_info, self.updater)
-            dialog.show()
-        except Exception as e:
-            print(f"Error showing update dialog: {e}")
+
 
 
 # Create alias for backward compatibility
