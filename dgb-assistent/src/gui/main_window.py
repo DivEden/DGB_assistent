@@ -247,6 +247,21 @@ class ModernAppHub:
                               command=self.open_github)
         github_btn.pack(fill=tk.X, pady=1)
         
+        # API Configuration button
+        api_config_btn = tk.Button(footer_frame, text="🔑 API Konfiguration",
+                                  font=self.fonts['body'],
+                                  fg=self.colors['text_sidebar'],
+                                  bg=self.colors['bg_sidebar'],
+                                  activebackground=self.colors['sidebar_accent'],
+                                  activeforeground=self.colors['text_white'],
+                                  relief=tk.FLAT,
+                                  anchor=tk.W,
+                                  padx=16, pady=10,
+                                  cursor='hand2',
+                                  bd=0,
+                                  command=self.open_api_config)
+        api_config_btn.pack(fill=tk.X, pady=1)
+        
         settings_btn = tk.Button(footer_frame, text="⚙️ Indstillinger",
                                 font=self.fonts['body'],
                                 fg=self.colors['text_sidebar'],
@@ -276,7 +291,7 @@ class ModernAppHub:
         about_btn.pack(fill=tk.X, pady=1)
         
         # Add dark theme hover effects to footer buttons
-        for btn in [github_btn, settings_btn, about_btn]:
+        for btn in [github_btn, api_config_btn, settings_btn, about_btn]:
             btn.bind("<Enter>", lambda e, button=btn: self.on_sidebar_button_hover(button, True))
             btn.bind("<Leave>", lambda e, button=btn: self.on_sidebar_button_hover(button, False))
         
@@ -595,6 +610,24 @@ class ModernAppHub:
                                "Kunne ikke åbne GitHub repository.\n\n"
                                "Du kan besøge https://github.com/DivEden/DGB_assistent manuelt.")
         
+    def open_api_config(self):
+        """Open API configuration dialog"""
+        try:
+            from utils.secure_config import get_secure_config
+            secure_config = get_secure_config()
+            
+            # Show credentials setup dialog
+            success = secure_config.setup_credentials_gui(self.master)
+            
+            if success:
+                messagebox.showinfo("API Konfiguration", 
+                                   "API legitimationsoplysninger er gemt sikkert!\n\n"
+                                   "Du kan nu bruge API-funktioner i applikationen.",
+                                   parent=self.master)
+            
+        except Exception as e:
+            messagebox.showerror("Fejl", f"Kunne ikke åbne API konfiguration: {str(e)}")
+    
     def open_settings(self):
         """Open application settings"""
         try:
