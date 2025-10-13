@@ -76,7 +76,3 @@ src/
 ├── utils/               # Hjælpefunktioner og API
 └── assets/              # Styling og ressourcer
 ```
-
-## Licens
-
-MIT License - se LICENSE fil for detaljer.
