@@ -10,9 +10,9 @@ from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 import base64
 
-# Axiell WebAPI Configuration Constants
-AXIELL_BASE_URL = "https://sara.slks.dk/"
-AXIELL_DATABASE = "objects"
+# Axiell WebAPI Configuration Constants - CORRECT API FROM PROVIDER
+AXIELL_BASE_URL = "https://sara-api.adlibhosting.com/SARA-011-DGB/"
+AXIELL_DATABASE = "collection"  # Confirmed database name from API provider
 
 
 class AxiellAPIClient:
@@ -45,55 +45,67 @@ class AxiellAPIClient:
     
     def authenticate(self) -> bool:
         """
-        Authenticate with Axiell WebAPI
+        Authenticate with Axiell WebAPI (demo server may not require auth)
         Returns True if successful, False otherwise
         """
-        # Check if credentials are available
-        if not all([self.username, self.password]):
-            print("No credentials available. Please configure API access first.")
-            return False
-            
         try:
             self.session = requests.Session()
             
-            # Create basic auth header
-            credentials = f"{self.username}:{self.password}"
-            encoded_credentials = base64.b64encode(credentials.encode()).decode()
+            # For demo server, try without authentication first
+            if "webapi.axiell.com" in self.base_url:
+                print("Using Axiell demo server - no authentication required")
+                self.session.headers.update({
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                })
+            else:
+                # For production servers, authentication is required
+                if not all([self.username, self.password]):
+                    print("Production server requires credentials. Please configure API access first.")
+                    return False
+                
+                print(f"Authenticating to production server with user: {self.username}")
+                
+                # Create basic auth header for production
+                credentials = f"{self.username}:{self.password}"
+                encoded_credentials = base64.b64encode(credentials.encode()).decode()
+                
+                self.session.headers.update({
+                    'Authorization': f'Basic {encoded_credentials}',
+                    'Content-Type': 'application/xml',  # Axiell often prefers XML
+                    'Accept': 'application/json, application/xml'
+                })
             
-            self.session.headers.update({
-                'Authorization': f'Basic {encoded_credentials}',
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            })
-            
-            # Test authentication with a simple request
-            test_url = urljoin(self.base_url, 'version')
-            response = self.session.get(test_url, timeout=10)
+            # Test connection with a simple Axiell WebAPI request
+            test_url = urljoin(self.base_url, 'wwwopac.ashx')
+            test_params = {'database': self.database, 'limit': 1}
+            response = self.session.get(test_url, params=test_params, timeout=10)
             
             if response.status_code == 200:
                 self.authenticated = True
+                print("✅ Connection to Axiell WebAPI successful")
                 return True
             else:
-                print(f"Authentication failed: {response.status_code} - {response.text}")
+                print(f"Connection failed: {response.status_code} - {response.text[:200]}")
                 return False
                 
         except requests.exceptions.RequestException as e:
-            print(f"Connection error during authentication: {e}")
+            print(f"Connection error: {e}")
             return False
         except Exception as e:
-            print(f"Unexpected error during authentication: {e}")
+            print(f"Unexpected error during connection: {e}")
             return False
     
     def setup_credentials(self, parent=None) -> bool:
         """Setup credentials through GUI"""
         return self.secure_config.setup_credentials_gui(parent)
     
-    def search_objects(self, case_number: str) -> List[Dict]:
+    def search_objects(self, object_number: str) -> List[Dict]:
         """
-        Search for objects by case number
+        Search for objects by objektnummer using Axiell WebAPI
         
         Args:
-            case_number: The case number to search for (e.g., "1234x5678")
+            object_number: The objektnummer to search for (e.g., "0054x0007")
             
         Returns:
             List of matching objects from Axiell
@@ -103,21 +115,64 @@ class AxiellAPIClient:
                 raise Exception("Failed to authenticate with Axiell API")
         
         try:
-            # Construct search URL - adjust endpoint based on your Axiell setup
-            search_url = urljoin(self.base_url, f'search/{self.database}/objects')
+            # Use the correct Axiell WebAPI endpoint from documentation
+            search_url = urljoin(self.base_url, 'wwwopac.ashx')
             
-            # Search parameters - adjust field names based on your database schema
-            params = {
-                'q': case_number,  # Simple text search
-                'limit': 100,
-                'format': 'json'
-            }
+            # Use confirmed database name from API provider
+            # Database is confirmed to be 'collection'
             
-            response = self.session.get(search_url, params=params, timeout=30)
-            response.raise_for_status()
+            # Search parameters based on API provider examples
+            # Primary field is 'IN' for inventory numbers as shown in examples
+            search_statements = [
+                f"IN='{object_number}'",                     # Primary field from API examples
+                f"objektnummer='{object_number}'",           # Standard Danish field name
+                f"priref='{object_number}'",                 # Primary reference (if numeric)
+                f"genstandsnummer='{object_number}'",        # Object number variant
+                f"katalognummer='{object_number}'",          # Catalog number
+                f"inventarnummer='{object_number}'",         # Full inventory number
+                f"object_number='{object_number}'",          # English field name
+                f"genstand.objektnummer='{object_number}'",  # Genstand (object) sub-field
+                f"internt_objektkatalog='{object_number}'"   # Internal object catalog
+            ]
             
-            data = response.json()
-            return data.get('results', [])
+            results = []
+            
+            # Use confirmed database from API provider
+            databases_to_try = [self.database]  # Only 'collection' database
+            
+            for database in databases_to_try:
+                for search_statement in search_statements:
+                    params = {
+                        'database': database,
+                        'search': search_statement,
+                        'xmltype': 'grouped',
+                        'limit': 100,
+                        'output': 'json'
+                    }
+                    
+                    response = self.session.get(search_url, params=params, timeout=30)
+                    
+                    if response.status_code == 200:
+                        try:
+                            data = response.json()
+                            # Check if we got results
+                            if data.get('adlibJSON', {}).get('recordList', {}).get('record'):
+                                records = data['adlibJSON']['recordList']['record']
+                                # Ensure records is always a list
+                                if isinstance(records, dict):
+                                    records = [records]
+                                print(f"✅ Found {len(records)} result(s) in database '{database}' using field '{search_statement}'")
+                                results.extend(records)
+                                return results  # Return immediately when we find results
+                        except json.JSONDecodeError:
+                            continue  # Try next search statement
+                    elif response.status_code != 500:  # Don't spam with 500 errors
+                        continue  # Try next combination
+                        
+                if results:  # If we found results, stop trying other databases
+                    break
+                        
+            return results
             
         except requests.exceptions.RequestException as e:
             print(f"Error searching Axiell API: {e}")
@@ -156,26 +211,26 @@ class AxiellAPIClient:
             print(f"Unexpected error fetching details: {e}")
             return None
     
-    def validate_case_number(self, case_number: str) -> Tuple[bool, str]:
+    def validate_object_number(self, object_number: str) -> Tuple[bool, str]:
         """
-        Validate if a case number exists in Axiell
+        Validate if an objektnummer exists in Axiell
         
         Args:
-            case_number: The case number to validate
+            object_number: The objektnummer to validate (e.g., "0054x0007")
             
         Returns:
             Tuple of (is_valid, message)
         """
         try:
-            results = self.search_objects(case_number)
+            results = self.search_objects(object_number)
             
             if results:
-                return True, f"Found {len(results)} object(s) for case {case_number}"
+                return True, f"Found {len(results)} object(s) for objektnummer {object_number}"
             else:
-                return False, f"No objects found for case {case_number}"
+                return False, f"No objects found for objektnummer {object_number}"
                 
         except Exception as e:
-            return False, f"Error validating case number: {e}"
+            return False, f"Error validating objektnummer: {e}"
     
     def get_connection_status(self) -> Dict[str, str]:
         """
