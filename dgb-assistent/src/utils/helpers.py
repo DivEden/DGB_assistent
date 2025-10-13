@@ -11,9 +11,16 @@ from datetime import datetime
 from pathlib import Path
 
 
-def setup_logging(app_name="PythonDesktopApp", log_level=logging.INFO):
+def setup_logging(app_name="DGB-Assistent", log_level=logging.INFO):
     """Setup logging configuration for the application"""
-    log_dir = Path.home() / "AppData" / "Local" / app_name / "logs"
+    # Use consistent directory structure with secure_config
+    if os.name == 'nt':  # Windows
+        appdata_dir = os.getenv('APPDATA', os.path.expanduser('~'))
+        log_dir = Path(appdata_dir) / app_name / "logs"
+    else:
+        # Unix-like systems
+        log_dir = Path.home() / ".config" / app_name.lower() / "logs"
+    
     log_dir.mkdir(parents=True, exist_ok=True)
     
     log_file = log_dir / f"{app_name}_{datetime.now().strftime('%Y%m%d')}.log"
@@ -30,21 +37,22 @@ def setup_logging(app_name="PythonDesktopApp", log_level=logging.INFO):
     return logging.getLogger(app_name)
 
 
-def get_app_data_dir(app_name="PythonDesktopApp"):
+def get_app_data_dir(app_name="DGB-Assistent"):
     """Get the application data directory"""
-    if sys.platform == "win32":
-        base_dir = Path.home() / "AppData" / "Local"
+    # Use consistent directory structure with secure_config
+    if os.name == 'nt':  # Windows
+        appdata_dir = os.getenv('APPDATA', os.path.expanduser('~'))
+        app_dir = Path(appdata_dir) / app_name
     elif sys.platform == "darwin":  # macOS
-        base_dir = Path.home() / "Library" / "Application Support"
+        app_dir = Path.home() / "Library" / "Application Support" / app_name
     else:  # Linux and others
-        base_dir = Path.home() / ".local" / "share"
+        app_dir = Path.home() / ".config" / app_name.lower()
     
-    app_dir = base_dir / app_name
     app_dir.mkdir(parents=True, exist_ok=True)
     return app_dir
 
 
-def save_settings(settings, app_name="PythonDesktopApp"):
+def save_settings(settings, app_name="DGB-Assistent"):
     """Save application settings to a JSON file"""
     try:
         app_dir = get_app_data_dir(app_name)

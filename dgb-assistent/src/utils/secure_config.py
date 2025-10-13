@@ -23,16 +23,16 @@ class SecureConfig:
     
     def _get_app_directory(self) -> Path:
         """Get application directory for storing secure config"""
-        if getattr(sys, 'frozen', False):
-            # Running as PyInstaller executable
-            app_dir = Path(sys.executable).parent
+        # Use Windows standard AppData directory for user-specific application data
+        if os.name == 'nt':  # Windows
+            appdata_dir = os.getenv('APPDATA', os.path.expanduser('~'))
+            config_dir = Path(appdata_dir) / "DGB-Assistent"
         else:
-            # Running as Python script
-            app_dir = Path(__file__).parent.parent
+            # Unix-like systems (Linux, macOS)
+            config_dir = Path.home() / ".config" / "dgb-assistent"
         
         # Create secure config directory
-        config_dir = app_dir / ".dgb_config"
-        config_dir.mkdir(exist_ok=True, mode=0o700)  # Owner read/write only
+        config_dir.mkdir(parents=True, exist_ok=True, mode=0o700)  # Owner read/write only
         return config_dir
     
     def _simple_encrypt(self, text: str, key: str = "dgb_key_2025") -> str:
