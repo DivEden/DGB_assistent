@@ -34,8 +34,11 @@ class SaraBatchUploader:
             "No Known Copyrights - NKC"
         ]
         
-        # Setup credentials storage
+        # Setup credentials storage and session management
         self.credentials_file = self._get_credentials_path()
+        self.session = requests.Session()
+        self.session_id = None
+        self.logged_in = False
     
     def _get_credentials_path(self) -> str:
         """Get secure path for storing SARA credentials"""
@@ -91,36 +94,96 @@ class SaraBatchUploader:
             print(f"Could not load credentials: {e}")
             return None, None
     
-    def test_credentials(self, username: str, password: str) -> bool:
-        """Test if SARA credentials work"""
+    def login_to_sara(self, username: str, password: str) -> bool:
+        """Login to SARA using Axiell Web API session management"""
         try:
-            params = {
+            # First, start a session
+            session_params = {
+                "command": "startsession",
                 "database": self.database,
-                "search": "priref=1",  # Simple test search
-                "limit": "1",
                 "output": "JSON"
             }
             
-            response = requests.get(
-                self.api_base_url, 
-                params=params, 
-                auth=(username, password), 
-                timeout=10
-            )
+            session_response = self.session.get(self.api_base_url, params=session_params, timeout=10)
             
-            return response.status_code == 200
+            if session_response.status_code != 200:
+                print(f"Failed to start session: {session_response.status_code}")
+                return False
+            
+            # Extract session ID from response if needed
+            session_data = session_response.json()
+            print(f"Session started: {session_data}")
+            
+            # Now login with credentials
+            login_params = {
+                "command": "login",
+                "database": self.database,
+                "userid": username,
+                "password": password,
+                "output": "JSON"
+            }
+            
+            login_response = self.session.get(self.api_base_url, params=login_params, timeout=10)
+            
+            if login_response.status_code == 200:
+                login_data = login_response.json()
+                print(f"Login successful: {login_data}")
+                self.logged_in = True
+                return True
+            else:
+                print(f"Login failed: {login_response.status_code}")
+                return False
             
         except Exception as e:
-            print(f"Credential test failed: {e}")
+            print(f"Login failed: {e}")
             return False
+    
+    def test_credentials(self, username: str, password: str) -> bool:
+        """Test if SARA credentials work by attempting login"""
+        return self.login_to_sara(username, password)
+    
+    def logout_from_sara(self):
+        """Logout from SARA and end session"""
+        try:
+            if self.logged_in:
+                logout_params = {
+                    "command": "logout",
+                    "database": self.database,
+                    "output": "JSON"
+                }
+                
+                self.session.get(self.api_base_url, params=logout_params, timeout=10)
+                
+                # End session
+                end_session_params = {
+                    "command": "endsession",
+                    "database": self.database,
+                    "output": "JSON"
+                }
+                
+                self.session.get(self.api_base_url, params=end_session_params, timeout=10)
+                
+            self.logged_in = False
+            self.session_id = None
+            print("Logged out from SARA")
+            
+        except Exception as e:
+            print(f"Logout failed: {e}")
 
 
     def upload_image_to_sara(self, image_path: str, object_number: str) -> Optional[str]:
         """Upload single image to SARA media server"""
         try:
-            username, password = self.load_credentials()
-            if not username or not password:
-                return None
+            # Ensure we're logged in
+            if not self.logged_in:
+                username, password = self.load_credentials()
+                if not username or not password:
+                    print("No credentials available for SARA upload")
+                    return None
+                
+                if not self.login_to_sara(username, password):
+                    print("Failed to login to SARA")
+                    return None
             
             # Read image file
             with open(image_path, 'rb') as f:
@@ -129,18 +192,19 @@ class SaraBatchUploader:
             # Generate filename for SARA
             filename = f"{object_number}_{Path(image_path).name}"
             
-            # Upload using writecontent API
+            # Upload using writecontent API with session
             params = {
                 "command": "writecontent",
-                "server": "sarafiles",  # May need adjustment
-                "value": filename
+                "server": "sarafiles",  # May need adjustment based on SARA config
+                "value": filename,
+                "database": self.database
             }
             
-            response = requests.post(
+            # Use the authenticated session for the upload
+            response = self.session.post(
                 self.api_base_url,
                 params=params,
                 files={'file': (filename, image_data, 'image/jpeg')},
-                auth=(username, password),
                 timeout=30
             )
             
@@ -164,13 +228,27 @@ class SaraBatchUploader:
                 # Extract object number from filename
                 filename = file_path.stem
                 
-                # Look for pattern like 0054x0007 or 0054X0007
+                # Look for multiple supported object number patterns
                 import re
-                pattern = r'(\d{4}[xX]\d{3,4})'
-                match = re.search(pattern, filename)
+                object_number = None
                 
-                if match:
-                    object_number = match.group(1).upper()
+                # Try different patterns in order of preference
+                patterns = [
+                    r'(\d{4}[xX]\d{3,4})',      # 1234x4321 - traditional format
+                    r'(\d+;\d{2,4})',           # 00073;15 - genstand format
+                    r'(?:AAB\s+)?(\d{4})'       # AAB 1234 or 1234 - case number
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, filename)
+                    if match:
+                        if 'x' in pattern or 'X' in pattern:
+                            object_number = match.group(1).upper()
+                        else:
+                            object_number = match.group(1)
+                        break
+                
+                if object_number:
                     images.append({
                         'file_path': str(file_path),
                         'filename': file_path.name,
@@ -334,17 +412,53 @@ class SaraBatchUploader:
     def batch_upload_image_files(self, file_paths: List[str]) -> bool:
         """Upload specific image files to SARA (for processed images)"""
         try:
+            # Check credentials and login if needed
+            if not self.logged_in:
+                username, password = self.load_credentials()
+                if not username or not password:
+                    messagebox.showerror(
+                        "SARA Login Påkrævet",
+                        "Du skal logge ind på SARA først.\n\n"
+                        "Brug '🔑 SARA Login' knappen i venstre menu."
+                    )
+                    return False
+                
+                # Login to SARA with session
+                if not self.login_to_sara(username, password):
+                    messagebox.showerror(
+                        "SARA Login Fejl",
+                        "Kunne ikke logge ind på SARA.\n\n"
+                        "Tjek dine legitimationsoplysninger med '🔑 SARA Login' knappen."
+                    )
+                    return False
+            
             # Convert file paths to image objects
             images = []
             for file_path in file_paths:
                 filename = Path(file_path).name
                 stem = Path(file_path).stem
                 
-                # Extract object number from filename
+                # Extract object number from filename using multiple patterns
                 import re
-                match = re.search(r'(\d{4}x\d{4})', stem, re.IGNORECASE)
-                if match:
-                    object_number = match.group(1).lower()
+                object_number = None
+                
+                # Try different patterns in order of preference
+                patterns = [
+                    r'(\d{4}[xX]\d{3,4})',      # 1234x4321 - traditional format
+                    r'(\d+;\d{2,4})',           # 00073;15 - genstand format
+                    r'(?:AAB\s+)?(\d{4})'       # AAB 1234 or 1234 - case number
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, stem, re.IGNORECASE)
+                    if match:
+                        if 'x' in pattern or 'X' in pattern:
+                            object_number = match.group(1).lower()
+                        else:
+                            object_number = match.group(1)
+                        break
+                
+                if object_number:
                     images.append({
                         'file_path': file_path,
                         'filename': filename,
@@ -358,7 +472,10 @@ class SaraBatchUploader:
                 messagebox.showinfo(
                     "Ingen billeder", 
                     "Ingen billeder med objektnumre fundet.\n\n"
-                    "Billeder skal have objektnummer i filnavnet (fx: 0054x0007.jpg)"
+                    "Understøttede formater:\n"
+                    "• 0054x0007 (traditionelt)\n"
+                    "• 00073;15 (genstands-nummer)\n"
+                    "• AAB 1234 (sagnummer)"
                 )
                 return False
             
@@ -378,7 +495,10 @@ class SaraBatchUploader:
                 messagebox.showinfo(
                     "Ingen billeder", 
                     "Ingen billeder med objektnumre fundet i mappen.\n\n"
-                    "Billeder skal have objektnummer i filnavnet (fx: 0054x0007.jpg)"
+                    "Understøttede formater:\n"
+                    "• 0054x0007 (traditionelt)\n"
+                    "• 00073;15 (genstands-nummer)\n" 
+                    "• AAB 1234 (sagnummer)"
                 )
                 return False
             

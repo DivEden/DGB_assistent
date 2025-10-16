@@ -145,10 +145,11 @@ class IndividualImageProcessor:
         
         # Instructions
         instructions = tk.Label(self.naming_frame,
-                               text="Indtast et unikt navn for hvert billede. Navne må ikke være tomme.",
+                               text="Indtast et navn for hvert billede. Ens navne får automatisk suffiks (a, b, c).\nFor SARA upload: brug format som 0054x0007, 00073;15 eller AAB 1234",
                                font=('Segoe UI', 10),
                                fg=self.colors['text_secondary'],
-                               bg=self.colors['bg_primary'])
+                               bg=self.colors['bg_primary'],
+                               justify=tk.LEFT)
         instructions.pack(anchor=tk.W, pady=(0, 10))
         
         # Scrollable frame for image naming
@@ -411,6 +412,18 @@ class IndividualImageProcessor:
                              width=30)
         name_entry.pack(side=tk.LEFT, padx=(5, 0), fill=tk.X, expand=True)
         
+        # Help button for object number format
+        help_btn = tk.Button(name_frame,
+                            text="?",
+                            font=('Segoe UI', 8),
+                            bg='#e2e8f0',
+                            fg='#475569',
+                            relief=tk.FLAT,
+                            width=2,
+                            cursor='hand2',
+                            command=self.show_object_number_help)
+        help_btn.pack(side=tk.RIGHT, padx=(5, 0))
+        
         # Store reference
         self.image_names.append(name_var)
         self.name_entries.append(name_entry)
@@ -427,6 +440,45 @@ class IndividualImageProcessor:
         # Clear previous validation
         self.validation_label.config(text="", foreground='black')
         self.start_btn.config(state=tk.DISABLED)
+    
+    def show_object_number_help(self):
+        """Show help dialog about object number format"""
+        help_text = """OBJEKTNUMMER FORMAT TIL SARA:
+
+Understøttede formater:
+• 0054x0007 (traditionelt format)
+• 1234X0123 (X kan være stort)
+• 00073;15 (genstands-nummer med år)
+• 12345;2015 (fuldt årstal)
+• AAB 1234 (med AAB præfiks)
+• 1234 (bare nummeret)
+
+Eksempler på ugyldige formater:
+• Mit billede (mangler objektnummer)
+• 0054-0007 (skal bruge x eller ;)
+
+For almindelig navngivning uden SARA upload 
+kan du bruge et hvilket som helst navn."""
+        
+        messagebox.showinfo("Objektnummer Hjælp", help_text)
+    
+    def validate_object_number(self, name: str) -> bool:
+        """Check if name contains valid object number format"""
+        import re
+        # Support multiple formats:
+        # 1. Traditional: 1234x4321 or 1234X4321
+        # 2. Genstands format: 00073;15 or 12345;2015
+        # 3. AAB format: AAB 1234 or just 1234
+        patterns = [
+            r'\d{4}[xX]\d{3,4}',      # 1234x4321
+            r'\d+;\d{2,4}',           # 00073;15 
+            r'(?:AAB\s+)?\d{4}'       # AAB 1234 or 1234
+        ]
+        
+        for pattern in patterns:
+            if re.search(pattern, name):
+                return True
+        return False
     
     def validate_names(self):
         """Validate all image names"""
@@ -445,7 +497,11 @@ class IndividualImageProcessor:
             )
             return False
         
-        # Check for duplicate names (men tillad dem nu - systemet håndterer automatisk)
+        # Check for valid object numbers (for SARA upload)
+        names_with_obj_nums = [name for name in names if self.validate_object_number(name)]
+        names_without_obj_nums = len(names) - len(names_with_obj_nums)
+        
+        # Check for duplicate names (systemet håndterer automatisk med suffiks)
         duplicates = []
         seen_names = {}
         for i, name in enumerate(names):
@@ -454,18 +510,28 @@ class IndividualImageProcessor:
             else:
                 seen_names[name.lower()] = i
         
-        if duplicates:
-            # Info besked i stedet for fejl - systemet håndterer automatisk
-            duplicate_count = len(duplicates)
-            self.validation_label.config(
-                text=f"ℹ️ {duplicate_count} duplikerede navne vil få automatisk suffiks (a, b, c)",
-                foreground='orange'
-            )
-        else:
-            # Ingen duplikater fundet
-            self.validation_label.config(text="✅ Alle navne er unikke!", foreground='green')
+        # Validation message
+        messages = []
         
-        # All validation passed - duplikater er nu tilladt
+        if duplicates:
+            duplicate_count = len(duplicates)
+            messages.append(f"ℹ️ {duplicate_count} ens navne får automatisk suffiks (a, b, c)")
+        else:
+            messages.append("✅ Alle navne er forskellige")
+        
+        if names_without_obj_nums > 0:
+            messages.append(f"⚠️ {names_without_obj_nums} navne mangler objektnummer (for SARA)")
+        elif len(names_with_obj_nums) > 0:
+            messages.append(f"✅ {len(names_with_obj_nums)} navne har objektnumre")
+        
+        # Show combined message
+        combined_message = " | ".join(messages)
+        if names_without_obj_nums > 0:
+            self.validation_label.config(text=combined_message, foreground='orange')
+        else:
+            self.validation_label.config(text=combined_message, foreground='green')
+        
+        # All validation passed - ens navne er tilladt og håndteres automatisk
         self.start_btn.config(state=tk.NORMAL)
         return True
     
@@ -758,8 +824,65 @@ class IndividualImageProcessor:
             messagebox.showerror("Fejl", "SARA upload er ikke tilgængelig. Kontakt support.")
             return
         
-        # Create temporary files from processed images (small versions)
+        # Check if any filenames contain valid object numbers
+        valid_object_numbers = 0
+        invalid_names = []
+        
+        for file_pair in self.processed_files:
+            filename = file_pair['small']['filename']
+            stem = os.path.splitext(filename)[0]
+            print(f"DEBUG: Tjekker filnavn: '{filename}' (stem: '{stem}')")
+            
+            # Check for object number patterns
+            import re
+            # Support multiple formats like museum_organizer
+            patterns = [
+                r'\d{4}[xX]\d{3,4}',      # 1234x4321
+                r'\d+;\d{2,4}',           # 00073;15 
+                r'(?:AAB\s+)?\d{4}'       # AAB 1234 or 1234
+            ]
+            
+            has_valid_format = False
+            for pattern in patterns:
+                if re.search(pattern, stem):
+                    has_valid_format = True
+                    break
+            
+            if has_valid_format:
+                valid_object_numbers += 1
+                print(f"DEBUG: Fandt gyldigt objektnummer i '{filename}'")
+            else:
+                invalid_names.append(filename)
+                print(f"DEBUG: Intet objektnummer fundet i '{filename}'")
+        
+        # Warn user if no valid object numbers found
+        if valid_object_numbers == 0:
+            response = messagebox.askquestion(
+                "Ingen Objektnumre Fundet",
+                "Ingen af dine billednavne indeholder gyldige objektnumre (format: 0054x0007).\n\n"
+                "SARA kræver objektnumre for at kunne importere billeder.\n\n"
+                "Vil du fortsætte alligevel? Du skal manuelt redigere CSV filen bagefter.",
+                icon="warning"
+            )
+            
+            if response != 'yes':
+                return
+        elif valid_object_numbers < len(self.processed_files):
+            invalid_count = len(self.processed_files) - valid_object_numbers
+            response = messagebox.askquestion(
+                "Delvis Objektnumre",
+                f"Kun {valid_object_numbers} ud af {len(self.processed_files)} billeder har gyldige objektnumre.\n\n"
+                f"{invalid_count} billeder mangler objektnumre og kræver manuel redigering af CSV filen.\n\n"
+                "Vil du fortsætte?",
+                icon="warning"
+            )
+            
+            if response != 'yes':
+                return
+        
+        # Create temporary files from processed images (small versions) with original names
         temp_files = []
+        temp_dir = tempfile.mkdtemp()
         
         try:
             for file_pair in self.processed_files:
@@ -767,29 +890,33 @@ class IndividualImageProcessor:
                 filename = file_pair['small']['filename']
                 image_data = file_pair['small']['data']
                 
-                # Create temporary file
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1])
-                temp_file.write(image_data)
-                temp_file.close()
+                # Create temporary file with original filename
+                temp_file_path = os.path.join(temp_dir, filename)
+                with open(temp_file_path, 'wb') as f:
+                    f.write(image_data)
                 
-                temp_files.append(temp_file.name)
+                temp_files.append(temp_file_path)
             
             # Use the batch upload system with temporary files
             uploader = SaraBatchUploader()
             success = uploader.batch_upload_image_files(temp_files)
             
             if success:
-                self.show_success_message("SARA upload færdig! CSV fil er gemt på skrivebordet.")
+                messagebox.showinfo("Upload Færdig", "SARA upload færdig! CSV fil er gemt på skrivebordet.")
             
         except Exception as e:
             messagebox.showerror("Fejl", f"SARA upload fejlede: {e}")
         finally:
-            # Clean up temporary files
+            # Clean up temporary files and directory
             for temp_file in temp_files:
                 try:
                     os.unlink(temp_file)
                 except:
                     pass
+            try:
+                os.rmdir(temp_dir)
+            except:
+                pass
         
 
 
