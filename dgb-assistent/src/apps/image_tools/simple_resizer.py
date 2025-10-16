@@ -9,10 +9,30 @@ import os
 from pathlib import Path
 import io
 import gc
+import tempfile
 from PIL import Image, ImageTk
 import threading
 from typing import List, Dict
 from .museum_organizer import MuseumOrganizer
+# Import SARA batch upload
+try:
+    from utils.sara_browser_uploader import SaraBatchUploader
+    SARA_UPLOAD_AVAILABLE = True
+except ImportError:
+    try:
+        from ...utils.sara_browser_uploader import SaraBatchUploader
+        SARA_UPLOAD_AVAILABLE = True
+    except ImportError:
+        # Fallback for PyInstaller or direct execution
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'utils'))
+        try:
+            from sara_browser_uploader import SaraBatchUploader
+            SARA_UPLOAD_AVAILABLE = True
+        except ImportError:
+            # SARA upload not available
+            SARA_UPLOAD_AVAILABLE = False
 
 
 class SimpleImageResizer:
@@ -132,7 +152,7 @@ class SimpleImageResizer:
         button_frame.pack(fill=tk.X)
         
         self.process_btn = tk.Button(button_frame,
-                                    text="🔄 Start Komprimering",
+                                    text="Start Komprimering",
                                     font=('Segoe UI', 11, 'bold'),
                                     bg=self.colors['success'],
                                     fg='white',
@@ -144,7 +164,7 @@ class SimpleImageResizer:
         self.process_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         self.save_btn = tk.Button(button_frame,
-                                 text="💾 Gem Billeder",
+                                 text="Gem Billeder",
                                  font=('Segoe UI', 11, 'bold'),
                                  bg=self.colors['accent'],
                                  fg='white',
@@ -153,10 +173,10 @@ class SimpleImageResizer:
                                  cursor='hand2',
                                  command=self.save_images,
                                  state=tk.DISABLED)
-        self.save_btn.pack(side=tk.RIGHT, padx=(0, 10))
+        self.save_btn.pack(side=tk.LEFT, padx=(10, 0))
         
         self.organize_btn = tk.Button(button_frame,
-                                     text="🗂️ Organiser til Museum",
+                                     text="Organiser til Museum",
                                      font=('Segoe UI', 11, 'bold'),
                                      bg=self.colors['success'],
                                      fg='white',
@@ -165,7 +185,19 @@ class SimpleImageResizer:
                                      cursor='hand2',
                                      command=self.organize_to_museum,
                                      state=tk.DISABLED)
-        self.organize_btn.pack(side=tk.RIGHT)
+        self.organize_btn.pack(side=tk.RIGHT, padx=(10, 0))
+        
+        self.sara_btn = tk.Button(button_frame,
+                                 text="Gem i SARA",
+                                 font=('Segoe UI', 11, 'bold'),
+                                 bg='#10b981',  # Green color for SARA
+                                 fg='white',
+                                 relief=tk.FLAT,
+                                 padx=20, pady=10,
+                                 cursor='hand2',
+                                 command=self.upload_to_sara,
+                                 state=tk.DISABLED)
+        self.sara_btn.pack(side=tk.RIGHT, padx=(10, 0))
         
     def select_files(self):
         """Select image files to process"""
@@ -345,10 +377,11 @@ class SimpleImageResizer:
     def processing_complete(self, success_count: int, total_count: int):
         """Called when processing is complete"""
         self.processing = False
-        self.process_btn.config(state=tk.NORMAL, text="🔄 Start Komprimering")
+        self.process_btn.config(state=tk.NORMAL, text="Start Komprimering")
         
         if success_count > 0:
             self.save_btn.config(state=tk.NORMAL)
+            self.sara_btn.config(state=tk.NORMAL)
             self.organize_btn.config(state=tk.NORMAL)
             self.status_label.config(text=f"Færdig! {success_count}/{total_count} billeder behandlet succesfuldt")
             self.show_results()
@@ -358,7 +391,7 @@ class SimpleImageResizer:
     def processing_error(self, error_message: str):
         """Called when processing encounters an error"""
         self.processing = False
-        self.process_btn.config(state=tk.NORMAL, text="🔄 Start Komprimering")
+        self.process_btn.config(state=tk.NORMAL, text="Start Komprimering")
         self.status_label.config(text=f"Fejl: {error_message}")
         messagebox.showerror("Behandlingsfejl", f"Der opstod en fejl: {error_message}")
     
@@ -506,6 +539,53 @@ class SimpleImageResizer:
         except Exception as e:
             messagebox.showerror("Organisering Fejl", 
                                f"Uventet fejl ved museum organisering:\n{str(e)}")
+    
+    def upload_to_sara(self):
+        """Upload compressed images to SARA using batch upload system"""
+        if not self.processed_images:
+            messagebox.showwarning("Ingen billeder", "Der er ingen behandlede billeder at uploade.")
+            return
+        
+        if not SARA_UPLOAD_AVAILABLE:
+            messagebox.showerror("Fejl", "SARA upload er ikke tilgængelig. Kontakt support.")
+            return
+        
+        # Create temporary files from processed images (compressed versions)
+        temp_files = []
+        
+        try:
+            for img_data in self.processed_images:
+                # Use the compressed image data
+                filename = img_data['output_filename']
+                image_data = img_data['data']
+                
+                # Create temporary file
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1])
+                temp_file.write(image_data)
+                temp_file.close()
+                
+                temp_files.append(temp_file.name)
+            
+            # Use the batch upload system with temporary files
+            uploader = SaraBatchUploader()
+            success = uploader.batch_upload_image_files(temp_files)
+            
+            if success:
+                self.show_success_message("SARA upload færdig! CSV fil er gemt på skrivebordet.")
+            
+        except Exception as e:
+            messagebox.showerror("Fejl", f"SARA upload fejlede: {e}")
+        finally:
+            # Clean up temporary files
+            for temp_file in temp_files:
+                try:
+                    os.unlink(temp_file)
+                except:
+                    pass
+    
+    def show_success_message(self, message):
+        """Show success message"""
+        messagebox.showinfo("Success", message, parent=self.window)
 
 
 def main():
@@ -519,3 +599,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

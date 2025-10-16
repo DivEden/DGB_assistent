@@ -22,8 +22,9 @@ import os
 import sys
 import math
 
-# Handle imports for both development and packaged versions
+# Handle imports for both development and packaged versions with robust fallbacks
 try:
+    # Try direct imports first (works in PyInstaller)
     from utils.settings import SettingsManager, SettingsDialog
     from config import APP_VERSION
     # Import image processing tools
@@ -31,13 +32,54 @@ try:
     from apps.image_tools.group_processor import GroupImageProcessor
     from apps.image_tools.individual_processor import IndividualImageProcessor
 except ImportError:
-    # Fallback for development with relative imports
-    from ..utils.settings import SettingsManager, SettingsDialog
-    from ..config import APP_VERSION
-    # Import image processing tools
-    from ..apps.image_tools.simple_resizer import SimpleImageResizer
-    from ..apps.image_tools.group_processor import GroupImageProcessor
-    from ..apps.image_tools.individual_processor import IndividualImageProcessor
+    try:
+        # Fallback for development with relative imports
+        from ..utils.settings import SettingsManager, SettingsDialog
+        from ..config import APP_VERSION
+        # Import image processing tools
+        from ..apps.image_tools.simple_resizer import SimpleImageResizer
+        from ..apps.image_tools.group_processor import GroupImageProcessor
+        from ..apps.image_tools.individual_processor import IndividualImageProcessor
+    except ImportError:
+        # Final fallback with path manipulation
+        import sys
+        import os
+        
+        # Add src directory to path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        src_dir = os.path.dirname(current_dir)
+        if src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        
+        # Try imports again
+        try:
+            from utils.settings import SettingsManager, SettingsDialog
+            from config import APP_VERSION
+            from apps.image_tools.simple_resizer import SimpleImageResizer
+            from apps.image_tools.group_processor import GroupImageProcessor
+            from apps.image_tools.individual_processor import IndividualImageProcessor
+        except ImportError as e:
+            print(f"Critical Error: Could not import image tools: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Try one more time with explicit path setup
+            import os
+            import sys
+            
+            # Get the actual executable directory
+            if getattr(sys, 'frozen', False):
+                # Running as PyInstaller executable
+                current_dir = os.path.dirname(sys.executable)
+            else:
+                # Running as script
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                
+            print(f"Current directory: {current_dir}")
+            print(f"Python path: {sys.path}")
+            
+            # This should not happen, but if it does, raise the error
+            raise ImportError(f"Could not import required image processing modules: {e}")
 
 
 class ModernAppHub:
@@ -241,20 +283,20 @@ class ModernAppHub:
                               command=self.open_github)
         github_btn.pack(fill=tk.X, pady=1)
         
-        # API Configuration button
-        api_config_btn = tk.Button(footer_frame, text="🔑 API Konfiguration",
-                                  font=self.fonts['body'],
-                                  fg=self.colors['text_sidebar'],
-                                  bg=self.colors['bg_sidebar'],
-                                  activebackground=self.colors['sidebar_accent'],
-                                  activeforeground=self.colors['text_white'],
-                                  relief=tk.FLAT,
-                                  anchor=tk.W,
-                                  padx=16, pady=10,
-                                  cursor='hand2',
-                                  bd=0,
-                                  command=self.open_api_config)
-        api_config_btn.pack(fill=tk.X, pady=1)
+        # SARA Configuration button (for browser automation credentials)
+        sara_config_btn = tk.Button(footer_frame, text="🔑 SARA Konfiguration",
+                                   font=self.fonts['body'],
+                                   fg=self.colors['text_sidebar'],
+                                   bg=self.colors['bg_sidebar'],
+                                   activebackground=self.colors['sidebar_accent'],
+                                   activeforeground=self.colors['text_white'],
+                                   relief=tk.FLAT,
+                                   anchor=tk.W,
+                                   padx=16, pady=10,
+                                   cursor='hand2',
+                                   bd=0,
+                                   command=self.open_sara_config)
+        sara_config_btn.pack(fill=tk.X, pady=1)
         
         settings_btn = tk.Button(footer_frame, text="⚙️ Indstillinger",
                                 font=self.fonts['body'],
@@ -285,7 +327,7 @@ class ModernAppHub:
         about_btn.pack(fill=tk.X, pady=1)
         
         # Add dark theme hover effects to footer buttons
-        for btn in [github_btn, api_config_btn, settings_btn, about_btn]:
+        for btn in [github_btn, sara_config_btn, settings_btn, about_btn]:
             btn.bind("<Enter>", lambda e, button=btn: self.on_sidebar_button_hover(button, True))
             btn.bind("<Leave>", lambda e, button=btn: self.on_sidebar_button_hover(button, False))
         
@@ -548,17 +590,25 @@ class ModernAppHub:
         
         if action == 'simple_resizer':
             try:
+                print(f"Launching SimpleImageResizer: {SimpleImageResizer}")
                 resizer = SimpleImageResizer(self.master)
+                print(f"Created resizer instance: {resizer}")
                 resizer.show()
+                print("Called show() method")
                 # Ensure proper window focus
                 if hasattr(resizer, 'window') and resizer.window:
                     resizer.window.lift()
                     resizer.window.focus_force()
+                    print("Window focus set")
             except Exception as e:
+                print(f"Error launching SimpleImageResizer: {e}")
+                import traceback
+                traceback.print_exc()
                 messagebox.showerror("Fejl", f"Kunne ikke starte Simpel Billedkomprimering:\n{str(e)}", parent=self.master)
         
         elif action == 'group_processor':
             try:
+                print(f"Launching GroupImageProcessor: {GroupImageProcessor}")
                 processor = GroupImageProcessor(self.master)
                 processor.show()
                 # Ensure proper window focus
@@ -566,10 +616,14 @@ class ModernAppHub:
                     processor.window.lift()
                     processor.window.focus_force()
             except Exception as e:
+                print(f"Error launching GroupImageProcessor: {e}")
+                import traceback
+                traceback.print_exc()
                 messagebox.showerror("Fejl", f"Kunne ikke starte Gruppe Billedbehandler:\n{str(e)}", parent=self.master)
         
         elif action == 'individual_processor':
             try:
+                print(f"Launching IndividualImageProcessor: {IndividualImageProcessor}")
                 processor = IndividualImageProcessor(self.master)
                 processor.show()
                 # Ensure proper window focus
@@ -577,6 +631,9 @@ class ModernAppHub:
                     processor.window.lift()
                     processor.window.focus_force()
             except Exception as e:
+                print(f"Error launching IndividualImageProcessor: {e}")
+                import traceback
+                traceback.print_exc()
                 messagebox.showerror("Fejl", f"Kunne ikke starte Individuel Billedbehandler:\n{str(e)}", parent=self.master)
         
         elif app['name'] == 'Indstillinger':
@@ -604,8 +661,8 @@ class ModernAppHub:
                                "Kunne ikke åbne GitHub repository.\n\n"
                                "Du kan besøge https://github.com/DivEden/DGB_assistent manuelt.")
         
-    def open_api_config(self):
-        """Open API configuration dialog"""
+    def open_sara_config(self):
+        """Open SARA configuration dialog"""
         try:
             from utils.secure_config import get_secure_config
             secure_config = get_secure_config()
@@ -614,13 +671,13 @@ class ModernAppHub:
             success = secure_config.setup_credentials_gui(self.master)
             
             if success:
-                messagebox.showinfo("API Konfiguration", 
-                                   "API legitimationsoplysninger er gemt sikkert!\n\n"
-                                   "Du kan nu bruge API-funktioner i applikationen.",
+                messagebox.showinfo("SARA Konfiguration", 
+                                   "SARA legitimationsoplysninger er gemt sikkert!\n\n"
+                                   "Du kan nu bruge SARA browser automation i applikationen.",
                                    parent=self.master)
             
         except Exception as e:
-            messagebox.showerror("Fejl", f"Kunne ikke åbne API konfiguration: {str(e)}")
+            messagebox.showerror("Fejl", f"Kunne ikke åbne SARA konfiguration: {str(e)}")
     
     def open_settings(self):
         """Open application settings"""

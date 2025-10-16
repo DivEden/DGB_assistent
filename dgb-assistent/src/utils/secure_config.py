@@ -1,6 +1,6 @@
 """
 Secure Configuration Manager for DGB Assistent
-Handles API credentials with multiple security layers
+Handles SARA browser automation credentials with multiple security layers
 """
 
 import os
@@ -14,7 +14,7 @@ import base64
 
 
 class SecureConfig:
-    """Secure configuration manager for API credentials"""
+    """Secure configuration manager for SARA credentials"""
     
     def __init__(self):
         self.app_dir = self._get_app_directory()
@@ -118,8 +118,9 @@ class SecureConfig:
         except ImportError:
             pass
         
-        username = os.getenv('AXIELL_USERNAME')
-        password = os.getenv('AXIELL_PASSWORD')
+        # Check for hardcoded credentials first (for SARA browser automation)
+        username = os.getenv('SARA_USERNAME', '')
+        password = os.getenv('SARA_PASSWORD', '')
         
         if username and password:
             # Don't use placeholder values
@@ -137,7 +138,7 @@ class SecureConfig:
         try:
             # Create setup window
             setup_window = tk.Toplevel(parent) if parent else tk.Tk()
-            setup_window.title("Axiell API Configuration")
+            setup_window.title("SARA Configuration")
             setup_window.geometry("500x400")
             setup_window.resizable(False, False)
             
@@ -157,7 +158,7 @@ class SecureConfig:
                 username_var.set(existing.get('username', ''))
             
             # UI Elements
-            tk.Label(setup_window, text="Axiell WebAPI Configuration", 
+            tk.Label(setup_window, text="SARA Browser Automation Configuration", 
                     font=('Segoe UI', 16, 'bold')).pack(pady=20)
             
             # Form
@@ -175,7 +176,7 @@ class SecureConfig:
             password_entry.pack(fill='x', pady=(0, 20))
             
             # Info text about server
-            info_label = tk.Label(frame, text="Server: https://sara.slks.dk/", 
+            info_label = tk.Label(frame, text="Server: https://sara.adlibhosting.com/SARA-011-DGB/", 
                                 font=('Segoe UI', 9), fg='#6b7280')
             info_label.pack(anchor='w', pady=(0, 10))
             

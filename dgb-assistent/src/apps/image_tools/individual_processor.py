@@ -11,10 +11,30 @@ import io
 import gc
 import json
 import zipfile
+import tempfile
 from PIL import Image, ImageTk
 import threading
 from typing import List, Dict, Optional
 from .museum_organizer import MuseumOrganizer
+# Import SARA batch upload
+try:
+    from utils.sara_browser_uploader import SaraBatchUploader
+    SARA_UPLOAD_AVAILABLE = True
+except ImportError:
+    try:
+        from ...utils.sara_browser_uploader import SaraBatchUploader
+        SARA_UPLOAD_AVAILABLE = True
+    except ImportError:
+        # Fallback for PyInstaller or direct execution
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'utils'))
+        try:
+            from sara_browser_uploader import SaraBatchUploader
+            SARA_UPLOAD_AVAILABLE = True
+        except ImportError:
+            # SARA upload not available
+            SARA_UPLOAD_AVAILABLE = False
 
 
 class IndividualImageProcessor:
@@ -271,17 +291,17 @@ class IndividualImageProcessor:
                                          state=tk.DISABLED)
         self.download_zip_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        self.save_individual_btn = tk.Button(download_frame,
-                                            text="💾 Gem Individuelt",
+        self.save_sara_btn = tk.Button(download_frame,
+                                            text="Gem i SARA",
                                             font=('Segoe UI', 11, 'bold'),
                                             bg=self.colors['success'],
                                             fg='white',
                                             relief=tk.FLAT,
                                             padx=20, pady=10,
                                             cursor='hand2',
-                                            command=self.save_individual,
+                                            command=self.upload_to_sara,
                                             state=tk.DISABLED)
-        self.save_individual_btn.pack(side=tk.LEFT, padx=(0, 10))
+        self.save_sara_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         self.organize_btn = tk.Button(download_frame,
                                      text="🗂️ Organiser til Museum",
@@ -630,7 +650,7 @@ class IndividualImageProcessor:
             self.status_label.config(text=f"Færdig! {success_count}/{total_count} billeder behandlet")
             self.show_results_summary()
             self.download_zip_btn.config(state=tk.NORMAL)
-            self.save_individual_btn.config(state=tk.NORMAL)
+            self.save_sara_btn.config(state=tk.NORMAL)
             self.organize_btn.config(state=tk.NORMAL)
         else:
             self.status_label.config(text="Ingen billeder kunne behandles")
@@ -726,51 +746,56 @@ class IndividualImageProcessor:
         except Exception as e:
             messagebox.showerror("ZIP Fejl", f"Fejl ved oprettelse af ZIP: {str(e)}")
     
-    def save_individual(self):
-        """Save processed images to selected directory"""
+
+
+    def upload_to_sara(self):
+        """Upload compressed images to SARA using batch upload system"""
         if not self.processed_files:
+            messagebox.showwarning("Ingen billeder", "Der er ingen behandlede billeder at uploade.")
             return
         
-        # Bring window to front before showing dialog
-        if self.window:
-            self.window.lift()
-            self.window.attributes('-topmost', True)
-            self.window.update()
-            self.window.attributes('-topmost', False)
-        
-        # Select output directory
-        output_dir = filedialog.askdirectory(title="Vælg mappe til gemte billeder", parent=self.window)
-        if not output_dir:
+        if not SARA_UPLOAD_AVAILABLE:
+            messagebox.showerror("Fejl", "SARA upload er ikke tilgængelig. Kontakt support.")
             return
+        
+        # Create temporary files from processed images (small versions)
+        temp_files = []
         
         try:
-            # Create subdirectories
-            small_dir = os.path.join(output_dir, "small")
-            large_dir = os.path.join(output_dir, "large")
-            os.makedirs(small_dir, exist_ok=True)
-            os.makedirs(large_dir, exist_ok=True)
-            
-            saved_count = 0
             for file_pair in self.processed_files:
+                # Use the small/compressed version
                 filename = file_pair['small']['filename']
+                image_data = file_pair['small']['data']
                 
-                # Save small version
-                small_path = os.path.join(small_dir, filename)
-                with open(small_path, 'wb') as f:
-                    f.write(file_pair['small']['data'])
+                # Create temporary file
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1])
+                temp_file.write(image_data)
+                temp_file.close()
                 
-                # Save large version
-                large_path = os.path.join(large_dir, filename)
-                with open(large_path, 'wb') as f:
-                    f.write(file_pair['large']['data'])
-                
-                saved_count += 1
+                temp_files.append(temp_file.name)
             
-            messagebox.showinfo("Gem Fuldført", 
-                              f"{saved_count * 2} filer gemt succesfuldt i:\n{output_dir}")
+            # Use the batch upload system with temporary files
+            uploader = SaraBatchUploader()
+            success = uploader.batch_upload_image_files(temp_files)
+            
+            if success:
+                self.show_success_message("SARA upload færdig! CSV fil er gemt på skrivebordet.")
             
         except Exception as e:
-            messagebox.showerror("Gem Fejl", f"Fejl ved gemning af billeder: {str(e)}")
+            messagebox.showerror("Fejl", f"SARA upload fejlede: {e}")
+        finally:
+            # Clean up temporary files
+            for temp_file in temp_files:
+                try:
+                    os.unlink(temp_file)
+                except:
+                    pass
+        
+
+
+
+    
+
     
     def organize_to_museum(self):
         """Organiser processede billeder til museum mappestruktur (kun store versioner)"""

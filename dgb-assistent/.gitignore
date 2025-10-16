@@ -102,11 +102,11 @@ test_images/
 sample_data/
 temp/
 
-# API credentials and secrets
+# SARA credentials and secrets
 .env
 .env.local
 .env.*.local
 config.local.py
 settings.local.py
-axiell_config.json
+sara_config.json
 credentials.json

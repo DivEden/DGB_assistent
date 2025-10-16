@@ -1,21 +1,5 @@
-# Core GUI and application requirements
-# tkinter is included with Python, no need to install separately
-
-# Packaging and distribution  
-pyinstaller>=6.0.0
-
-# Image processing (optional, for handling images/icons)
+# Essential dependencies only - optimized for minimal build size
 Pillow>=10.0.0
-
-# HTTP requests for auto-updates and API calls
 requests>=2.31.0
-
-# Environment variable management
 python-dotenv>=1.0.0
-
-# Additional utilities (optional)
-pathlib2>=2.3.7; python_version<'3.4'
-
-# Development dependencies (optional)
-# pytest>=7.0.0
-# flake8>=6.0.0
+pyinstaller>=6.0.0

@@ -16,9 +16,9 @@ Avanceret billedbehandling med filters og tilpassede indstillinger for enkelte b
 **Museum Organisering**
 Specialiseret værktøj til katalogisering og organisering af museums billedsamlinger.
 
-## Axiell Integration
+## SARA Integration
 
-Programmet understøtter integration med Axiell WebAPI til museum databaser. API-credentials kan konfigureres gennem programmets interface.
+Programmet understøtter integration med SARA (Statens Arkiver Register og Arkiveringssystem) via browser automation. SARA-credentials kan konfigureres gennem programmets interface for automatisk upload og linking af billeder til objekter.
 
 ## Installation og Brug
 
@@ -53,14 +53,8 @@ python src/main.py
 
 **Windows:**
 ```bash
-# Brug PowerShell script (anbefalet)
-.\build.ps1
-
-# Eller batch fil
-.\build.bat
-
-# Eller direkte PyInstaller
-pyinstaller build.spec
+# Brug PyInstaller med build.spec
+python -m pyinstaller build.spec --clean
 ```
 
 Den færdige executable findes i `dist/DGB-Assistent.exe` efter succesfuld bygning.
