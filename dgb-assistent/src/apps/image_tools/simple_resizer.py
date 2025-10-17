@@ -16,11 +16,11 @@ from typing import List, Dict
 from .museum_organizer import MuseumOrganizer
 # Import SARA batch upload
 try:
-    from utils.sara_browser_uploader import SaraBatchUploader
+    from utils.sara_uploader import SaraUploader
     SARA_UPLOAD_AVAILABLE = True
 except ImportError:
     try:
-        from ...utils.sara_browser_uploader import SaraBatchUploader
+        from ...utils.sara_uploader import SaraUploader
         SARA_UPLOAD_AVAILABLE = True
     except ImportError:
         # Fallback for PyInstaller or direct execution
@@ -28,7 +28,7 @@ except ImportError:
         import os
         sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'utils'))
         try:
-            from sara_browser_uploader import SaraBatchUploader
+            from sara_uploader import SaraUploader
             SARA_UPLOAD_AVAILABLE = True
         except ImportError:
             # SARA upload not available
@@ -550,38 +550,25 @@ class SimpleImageResizer:
             messagebox.showerror("Fejl", "SARA upload er ikke tilgængelig. Kontakt support.")
             return
         
-        # Create temporary files from processed images (compressed versions)
-        temp_files = []
+        # Prepare compressed images with filenames for upload
+        images_to_upload = []
+        
+        for img_data in self.processed_images:
+            # Use the compressed image data
+            images_to_upload.append({
+                'filename': img_data['output_filename'],
+                'data': img_data['data']
+            })
         
         try:
-            for img_data in self.processed_images:
-                # Use the compressed image data
-                filename = img_data['output_filename']
-                image_data = img_data['data']
-                
-                # Create temporary file
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1])
-                temp_file.write(image_data)
-                temp_file.close()
-                
-                temp_files.append(temp_file.name)
+            # Use the new SARA uploader with compressed image data
+            uploader = SaraUploader()
+            success = uploader.batch_upload_images(images_to_upload, parent_window=self.window)
             
-            # Use the batch upload system with temporary files
-            uploader = SaraBatchUploader()
-            success = uploader.batch_upload_image_files(temp_files)
-            
-            if success:
-                self.show_success_message("SARA upload færdig! CSV fil er gemt på skrivebordet.")
+            # Success message is shown by uploader
             
         except Exception as e:
             messagebox.showerror("Fejl", f"SARA upload fejlede: {e}")
-        finally:
-            # Clean up temporary files
-            for temp_file in temp_files:
-                try:
-                    os.unlink(temp_file)
-                except:
-                    pass
     
     def show_success_message(self, message):
         """Show success message"""

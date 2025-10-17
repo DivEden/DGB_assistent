@@ -93,9 +93,7 @@ class ModernAppHub:
         # Initialize settings
         self.settings_manager = SettingsManager()
         
-        # Check SARA login status
-        self.sara_logged_in = False
-        self.check_sara_login_status()
+        # SARA credentials are now hardcoded - no login system needed
         
         # DGB Assistent apps (customizable)
         self.apps = [
@@ -135,29 +133,6 @@ class ModernAppHub:
         self.setup_window()
         self.create_modern_interface()
     
-    def check_sara_login_status(self):
-        """Check if SARA credentials are already saved and valid"""
-        try:
-            from utils.sara_browser_uploader import SaraBatchUploader
-            uploader = SaraBatchUploader()
-            username, password = uploader.load_credentials()
-            
-            if username and password:
-                # Test credentials to make sure they still work
-                if uploader.test_credentials(username, password):
-                    self.sara_logged_in = True
-                    print("SARA credentials found and validated")
-                else:
-                    print("SARA credentials found but invalid")
-                    self.sara_logged_in = False
-            else:
-                print("No SARA credentials found")
-                self.sara_logged_in = False
-                
-        except Exception as e:
-            print(f"Error checking SARA login status: {e}")
-            self.sara_logged_in = False
-        
     def setup_window(self):
         """Configure the main window with modern styling"""
         self.master.title("DGB Assistent")
@@ -310,27 +285,8 @@ class ModernAppHub:
                               command=self.open_github)
         github_btn.pack(fill=tk.X, pady=1)
         
-        # SARA Configuration button - changes based on login status
-        if self.sara_logged_in:
-            sara_text = "✅ SARA Tilsluttet"
-            sara_color = self.colors.get('success', '#10b981')
-        else:
-            sara_text = "🔑 SARA Login"
-            sara_color = self.colors['text_sidebar']
-            
-        self.sara_config_btn = tk.Button(footer_frame, text=sara_text,
-                                        font=self.fonts['body'],
-                                        fg=sara_color,
-                                        bg=self.colors['bg_sidebar'],
-                                        activebackground=self.colors['sidebar_accent'],
-                                        activeforeground=self.colors['text_white'],
-                                        relief=tk.FLAT,
-                                        anchor=tk.W,
-                                        padx=16, pady=10,
-                                        cursor='hand2',
-                                        bd=0,
-                                        command=self.open_sara_config)
-        self.sara_config_btn.pack(fill=tk.X, pady=1)
+        # SARA is now hardcoded - no login button needed
+        # Credentials are configured directly in sara_browser_uploader.py
         
         settings_btn = tk.Button(footer_frame, text="⚙️ Indstillinger",
                                 font=self.fonts['body'],
@@ -361,7 +317,7 @@ class ModernAppHub:
         about_btn.pack(fill=tk.X, pady=1)
         
         # Add dark theme hover effects to footer buttons
-        for btn in [github_btn, self.sara_config_btn, settings_btn, about_btn]:
+        for btn in [github_btn, settings_btn, about_btn]:
             btn.bind("<Enter>", lambda e, button=btn: self.on_sidebar_button_hover(button, True))
             btn.bind("<Leave>", lambda e, button=btn: self.on_sidebar_button_hover(button, False))
         
@@ -695,141 +651,6 @@ class ModernAppHub:
                                "Kunne ikke åbne GitHub repository.\n\n"
                                "Du kan besøge https://github.com/DivEden/DGB_assistent manuelt.")
         
-    def open_sara_config(self):
-        """Open SARA configuration dialog"""
-        try:
-            # If already logged in, show status and option to change
-            if self.sara_logged_in:
-                response = messagebox.askyesno(
-                    "SARA Status", 
-                    "Du er allerede tilsluttet SARA!\n\n"
-                    "Vil du ændre dine SARA legitimationsoplysninger?",
-                    parent=self.master
-                )
-                
-                if not response:
-                    return
-            
-            # Use SARA batch uploader for consistent credential storage
-            from utils.sara_browser_uploader import SaraBatchUploader
-            uploader = SaraBatchUploader()
-            
-            # Show credentials input dialog
-            success = self.show_sara_credentials_dialog(uploader)
-            
-            if success:
-                # Update login status
-                self.check_sara_login_status()
-                self.update_sara_button()
-                
-                messagebox.showinfo("SARA Konfiguration", 
-                                   "SARA legitimationsoplysninger er gemt sikkert!\n\n"
-                                   "Du kan nu bruge SARA batch upload i applikationen.",
-                                   parent=self.master)
-            
-        except Exception as e:
-            messagebox.showerror("Fejl", f"Kunne ikke åbne SARA konfiguration: {str(e)}")
-    
-    def show_sara_credentials_dialog(self, uploader) -> bool:
-        """Show dialog for entering SARA credentials"""
-        dialog = tk.Toplevel(self.master)
-        dialog.title("SARA Login")
-        dialog.geometry("400x250")
-        dialog.transient(self.master)
-        dialog.grab_set()
-        
-        # Center dialog
-        dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (400 // 2)
-        y = (dialog.winfo_screenheight() // 2) - (250 // 2)
-        dialog.geometry(f"400x250+{x}+{y}")
-        
-        # Variables for form data
-        username_var = tk.StringVar()
-        password_var = tk.StringVar()
-        success_var = tk.BooleanVar(value=False)
-        
-        # Load existing credentials if any
-        existing_username, existing_password = uploader.load_credentials()
-        if existing_username:
-            username_var.set(existing_username)
-        
-        # Create form
-        main_frame = ttk.Frame(dialog, padding="20")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        ttk.Label(main_frame, text="SARA Login Oplysninger", 
-                 font=('Segoe UI', 14, 'bold')).pack(pady=(0, 20))
-        
-        # Username
-        ttk.Label(main_frame, text="Brugernavn:").pack(anchor=tk.W, pady=(0, 5))
-        username_entry = ttk.Entry(main_frame, textvariable=username_var, width=40)
-        username_entry.pack(fill=tk.X, pady=(0, 15))
-        
-        # Password  
-        ttk.Label(main_frame, text="Adgangskode:").pack(anchor=tk.W, pady=(0, 5))
-        password_entry = ttk.Entry(main_frame, textvariable=password_var, show="*", width=40)
-        password_entry.pack(fill=tk.X, pady=(0, 20))
-        
-        # Buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=(20, 0))
-        
-        def on_test_login():
-            username = username_var.get().strip()
-            password = password_var.get().strip()
-            
-            if not username or not password:
-                messagebox.showerror("Fejl", "Indtast både brugernavn og adgangskode")
-                return
-                
-            # Test login
-            if uploader.login_to_sara(username, password):
-                # Save credentials
-                uploader.save_credentials(username, password)
-                success_var.set(True)
-                dialog.destroy()
-            else:
-                messagebox.showerror("Login Fejl", "Kunne ikke logge ind på SARA.\nTjek dine oplysninger.")
-        
-        def on_cancel():
-            dialog.destroy()
-        
-        ttk.Button(button_frame, text="Test & Gem", command=on_test_login).pack(side=tk.RIGHT, padx=(5, 0))
-        ttk.Button(button_frame, text="Annuller", command=on_cancel).pack(side=tk.RIGHT)
-        
-        # Focus on username or password field
-        if existing_username:
-            password_entry.focus()
-        else:
-            username_entry.focus()
-        
-        # Handle Enter key
-        def on_enter(event):
-            on_test_login()
-            
-        username_entry.bind('<Return>', on_enter)
-        password_entry.bind('<Return>', on_enter)
-        
-        # Wait for dialog to close
-        dialog.wait_window()
-        
-        return success_var.get()
-    
-    def update_sara_button(self):
-        """Update SARA button text and color based on login status"""
-        if hasattr(self, 'sara_config_btn'):
-            if self.sara_logged_in:
-                self.sara_config_btn.config(
-                    text="✅ SARA Tilsluttet",
-                    fg=self.colors['success']
-                )
-            else:
-                self.sara_config_btn.config(
-                    text="🔑 SARA Login",
-                    fg=self.colors['text_sidebar']
-                )
-    
     def open_settings(self):
         """Open application settings"""
         try:

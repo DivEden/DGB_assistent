@@ -18,11 +18,11 @@ from typing import List, Dict, Optional
 from .museum_organizer import MuseumOrganizer
 # Import SARA batch upload
 try:
-    from utils.sara_browser_uploader import SaraBatchUploader
+    from utils.sara_uploader import SaraUploader
     SARA_UPLOAD_AVAILABLE = True
 except ImportError:
     try:
-        from ...utils.sara_browser_uploader import SaraBatchUploader
+        from ...utils.sara_uploader import SaraUploader
         SARA_UPLOAD_AVAILABLE = True
     except ImportError:
         # Fallback for PyInstaller or direct execution
@@ -30,7 +30,7 @@ except ImportError:
         import os
         sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'utils'))
         try:
-            from sara_browser_uploader import SaraBatchUploader
+            from sara_uploader import SaraUploader
             SARA_UPLOAD_AVAILABLE = True
         except ImportError:
             # SARA upload not available
@@ -824,99 +824,25 @@ kan du bruge et hvilket som helst navn."""
             messagebox.showerror("Fejl", "SARA upload er ikke tilgængelig. Kontakt support.")
             return
         
-        # Check if any filenames contain valid object numbers
-        valid_object_numbers = 0
-        invalid_names = []
+        # Prepare compressed images with filenames for upload
+        images_to_upload = []
         
         for file_pair in self.processed_files:
-            filename = file_pair['small']['filename']
-            stem = os.path.splitext(filename)[0]
-            print(f"DEBUG: Tjekker filnavn: '{filename}' (stem: '{stem}')")
-            
-            # Check for object number patterns
-            import re
-            # Support multiple formats like museum_organizer
-            patterns = [
-                r'\d{4}[xX]\d{3,4}',      # 1234x4321
-                r'\d+;\d{2,4}',           # 00073;15 
-                r'(?:AAB\s+)?\d{4}'       # AAB 1234 or 1234
-            ]
-            
-            has_valid_format = False
-            for pattern in patterns:
-                if re.search(pattern, stem):
-                    has_valid_format = True
-                    break
-            
-            if has_valid_format:
-                valid_object_numbers += 1
-                print(f"DEBUG: Fandt gyldigt objektnummer i '{filename}'")
-            else:
-                invalid_names.append(filename)
-                print(f"DEBUG: Intet objektnummer fundet i '{filename}'")
-        
-        # Warn user if no valid object numbers found
-        if valid_object_numbers == 0:
-            response = messagebox.askquestion(
-                "Ingen Objektnumre Fundet",
-                "Ingen af dine billednavne indeholder gyldige objektnumre (format: 0054x0007).\n\n"
-                "SARA kræver objektnumre for at kunne importere billeder.\n\n"
-                "Vil du fortsætte alligevel? Du skal manuelt redigere CSV filen bagefter.",
-                icon="warning"
-            )
-            
-            if response != 'yes':
-                return
-        elif valid_object_numbers < len(self.processed_files):
-            invalid_count = len(self.processed_files) - valid_object_numbers
-            response = messagebox.askquestion(
-                "Delvis Objektnumre",
-                f"Kun {valid_object_numbers} ud af {len(self.processed_files)} billeder har gyldige objektnumre.\n\n"
-                f"{invalid_count} billeder mangler objektnumre og kræver manuel redigering af CSV filen.\n\n"
-                "Vil du fortsætte?",
-                icon="warning"
-            )
-            
-            if response != 'yes':
-                return
-        
-        # Create temporary files from processed images (small versions) with original names
-        temp_files = []
-        temp_dir = tempfile.mkdtemp()
+            # Use the small/compressed version
+            images_to_upload.append({
+                'filename': file_pair['small']['filename'],
+                'data': file_pair['small']['data']
+            })
         
         try:
-            for file_pair in self.processed_files:
-                # Use the small/compressed version
-                filename = file_pair['small']['filename']
-                image_data = file_pair['small']['data']
-                
-                # Create temporary file with original filename
-                temp_file_path = os.path.join(temp_dir, filename)
-                with open(temp_file_path, 'wb') as f:
-                    f.write(image_data)
-                
-                temp_files.append(temp_file_path)
+            # Use the new SARA uploader with compressed image data
+            uploader = SaraUploader()
+            success = uploader.batch_upload_images(images_to_upload, parent_window=self.window)
             
-            # Use the batch upload system with temporary files
-            uploader = SaraBatchUploader()
-            success = uploader.batch_upload_image_files(temp_files)
-            
-            if success:
-                messagebox.showinfo("Upload Færdig", "SARA upload færdig! CSV fil er gemt på skrivebordet.")
+            # Success message is shown by uploader
             
         except Exception as e:
             messagebox.showerror("Fejl", f"SARA upload fejlede: {e}")
-        finally:
-            # Clean up temporary files and directory
-            for temp_file in temp_files:
-                try:
-                    os.unlink(temp_file)
-                except:
-                    pass
-            try:
-                os.rmdir(temp_dir)
-            except:
-                pass
         
 
 
